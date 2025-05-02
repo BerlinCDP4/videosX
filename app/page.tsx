@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect } from "react"
 import { GalleryHeader } from "@/components/gallery-header"
 import { MainNavigation } from "@/components/main-navigation"
-import { getMedia } from "@/lib/actions"
+import { getMedia, syncMediaDatabase } from "@/lib/actions"
 import type { MediaItem } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Upload } from "lucide-react"
@@ -18,13 +18,36 @@ export default function Home() {
   const [favorites, setFavorites] = useState<string[]>([])
   const router = useRouter()
 
+  // Cargar datos guardados al iniciar
   useEffect(() => {
-    const fetchMedia = async () => {
+    const loadSavedData = async () => {
       try {
-        const data = await getMedia()
-        setMediaItems(data)
+        // Intentar cargar medios desde localStorage
+        const savedMedia = localStorage.getItem("mediaItems")
+        if (savedMedia) {
+          const parsedMedia = JSON.parse(savedMedia) as MediaItem[]
+          setMediaItems(parsedMedia)
+
+          // Sincronizar con la base de datos del servidor
+          await syncMediaDatabase(parsedMedia)
+        } else {
+          // Si no hay datos guardados, cargar desde el servidor
+          const data = await getMedia()
+          setMediaItems(data)
+
+          // Guardar en localStorage
+          localStorage.setItem("mediaItems", JSON.stringify(data))
+        }
       } catch (error) {
         console.error("Error al cargar los medios:", error)
+
+        // Intentar cargar desde el servidor como respaldo
+        try {
+          const data = await getMedia()
+          setMediaItems(data)
+        } catch (e) {
+          console.error("Error al cargar los medios desde el servidor:", e)
+        }
       } finally {
         setIsLoading(false)
       }
@@ -36,8 +59,15 @@ export default function Home() {
       setFavorites(JSON.parse(savedFavorites))
     }
 
-    fetchMedia()
+    loadSavedData()
   }, [])
+
+  // Guardar cambios en localStorage cuando cambian los medios
+  useEffect(() => {
+    if (mediaItems.length > 0 && !isLoading) {
+      localStorage.setItem("mediaItems", JSON.stringify(mediaItems))
+    }
+  }, [mediaItems, isLoading])
 
   // Toggle favorite status
   const toggleFavorite = (id: string) => {
@@ -51,7 +81,6 @@ export default function Home() {
   }
 
   // Actualizar la función que maneja la navegación:
-
   const handleNavigate = (section: string) => {
     setActiveSection(section)
 

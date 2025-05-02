@@ -3,11 +3,12 @@
 import type React from "react"
 
 import Image from "next/image"
-import { Play, Heart } from "lucide-react"
+import { Play, Heart, Lock } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { MediaItem } from "@/lib/types"
+import { useRef, useEffect, useState } from "react"
 
 interface MediaCardProps {
   item: MediaItem
@@ -17,6 +18,61 @@ interface MediaCardProps {
 }
 
 export default function MediaCard({ item, onClick, isFavorite, onToggleFavorite }: MediaCardProps) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [thumbnailUrl, setThumbnailUrl] = useState<string>(item.thumbnail || "/placeholder.svg?height=400&width=600")
+
+  // Generar miniatura para videos de catbox.moe
+  useEffect(() => {
+    if (item.type === "video" && item.url.includes("catbox.moe") && videoRef.current) {
+      const video = videoRef.current
+
+      // Crear un elemento de video oculto para generar la miniatura
+      video.src = item.url
+      video.muted = true
+      video.preload = "metadata"
+
+      // Cuando el video esté cargado, extraer un fotograma como miniatura
+      const handleLoadedData = () => {
+        // Intentar capturar un fotograma a los 2 segundos
+        video.currentTime = 2
+
+        // Cuando el tiempo cambie, capturar el fotograma
+        const handleTimeUpdate = () => {
+          try {
+            // Crear un canvas para capturar el fotograma
+            const canvas = document.createElement("canvas")
+            canvas.width = video.videoWidth
+            canvas.height = video.videoHeight
+
+            // Dibujar el fotograma en el canvas
+            const ctx = canvas.getContext("2d")
+            if (ctx) {
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+              // Convertir el canvas a una URL de datos
+              const dataUrl = canvas.toDataURL("image/jpeg")
+              setThumbnailUrl(dataUrl)
+            }
+
+            // Ya tenemos el fotograma, podemos pausar el video
+            video.pause()
+            video.removeEventListener("timeupdate", handleTimeUpdate)
+          } catch (error) {
+            console.error("Error al generar miniatura:", error)
+          }
+        }
+
+        video.addEventListener("timeupdate", handleTimeUpdate)
+      }
+
+      video.addEventListener("loadeddata", handleLoadedData)
+
+      return () => {
+        video.removeEventListener("loadeddata", handleLoadedData)
+      }
+    }
+  }, [item])
+
   // Translate category
   const translateCategory = (category: string) => {
     const translations: Record<string, string> = {
@@ -56,7 +112,7 @@ export default function MediaCard({ item, onClick, isFavorite, onToggleFavorite 
       }}
     >
       <CardContent className="p-0 relative">
-        <div className="absolute top-2 right-2 z-20">
+        <div className="absolute top-2 right-2 z-20 flex gap-1">
           <Button
             variant="ghost"
             size="icon"
@@ -68,9 +124,23 @@ export default function MediaCard({ item, onClick, isFavorite, onToggleFavorite 
           </Button>
         </div>
 
+        <div className="absolute top-2 left-2 z-20">
+          <Badge variant="outline" className="bg-black/30 border-none text-white">
+            <Lock className="h-3 w-3 mr-1" /> Protegido
+          </Badge>
+        </div>
+
         <div className="aspect-video relative">
           {item.type === "image" ? (
-            <Image src={item.url || "/placeholder.svg"} alt={item.title || "Imagen"} fill className="object-cover" />
+            <Image
+              src={item.url || "/placeholder.svg"}
+              alt={item.title || "Imagen"}
+              fill
+              className="object-cover"
+              unoptimized={true}
+              onContextMenu={(e) => e.preventDefault()}
+              draggable={false}
+            />
           ) : item.type === "video" ? (
             <>
               <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-10">
@@ -79,11 +149,16 @@ export default function MediaCard({ item, onClick, isFavorite, onToggleFavorite 
                 </div>
               </div>
               <Image
-                src={item.thumbnail || "/placeholder.svg"}
+                src={thumbnailUrl || "/placeholder.svg"}
                 alt={item.title || "Miniatura de video"}
                 fill
                 className="object-cover"
+                unoptimized={true}
+                onContextMenu={(e) => e.preventDefault()}
+                draggable={false}
               />
+              {/* Video oculto para generar miniaturas */}
+              {item.url.includes("catbox.moe") && <video ref={videoRef} className="hidden" muted preload="metadata" />}
             </>
           ) : null}
         </div>

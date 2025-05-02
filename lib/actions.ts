@@ -3,9 +3,11 @@
 import type { MediaItem } from "./types"
 import { revalidatePath } from "next/cache"
 
-// Base de datos vacía para que solo se muestren los medios que agregues
+// Base de datos simulada para almacenar medios
+// En una implementación real, esto sería una base de datos persistente
 let mediaDatabase: MediaItem[] = []
 
+// Función para cargar medios desde localStorage (se ejecuta en el cliente)
 export async function getMedia(): Promise<MediaItem[]> {
   // Simular retraso de API
   await new Promise((resolve) => setTimeout(resolve, 500))
@@ -55,7 +57,6 @@ export async function uploadMedia(url: string, type: string, title: string, cate
 
   // Procesar según el tipo
   if (type === "video") {
-    // Intentar extraer miniatura del video
     // Para YouTube
     if (url.includes("youtube.com") || url.includes("youtu.be")) {
       let videoId = null
@@ -73,8 +74,18 @@ export async function uploadMedia(url: string, type: string, title: string, cate
     // Para Vimeo
     else if (url.includes("vimeo.com")) {
       // En una implementación real, se haría una llamada a la API de Vimeo
-      // Para este ejemplo, usamos un placeholder
       thumbnail = "/placeholder.svg?height=400&width=600"
+    }
+    // Para catbox.moe y otros servicios de alojamiento de videos
+    else if (url.includes("catbox.moe") || url.endsWith(".mp4") || url.endsWith(".webm")) {
+      // Generar una miniatura basada en el dominio
+      if (url.includes("catbox.moe")) {
+        // Usar la misma URL como miniatura, el componente de video intentará extraer un fotograma
+        thumbnail = url
+      } else {
+        // Para otros servicios, usar un placeholder
+        thumbnail = "/placeholder.svg?height=400&width=600"
+      }
     }
     // Para otros videos, usar un placeholder
     else {
@@ -91,6 +102,7 @@ export async function uploadMedia(url: string, type: string, title: string, cate
     category: category.toLowerCase(),
     thumbnail,
     createdAt: new Date().toISOString(),
+    protected: true, // Marcar como protegido por defecto
   }
 
   // Añadir a la base de datos
@@ -105,4 +117,10 @@ export async function uploadMedia(url: string, type: string, title: string, cate
   revalidatePath("/recent")
 
   return newMedia
+}
+
+// Función para sincronizar la base de datos con localStorage
+export async function syncMediaDatabase(items: MediaItem[]): Promise<void> {
+  mediaDatabase = items
+  revalidatePath("/")
 }

@@ -6,20 +6,39 @@ import { GalleryHeader } from "@/components/gallery-header"
 import { MainNavigation } from "@/components/main-navigation"
 import { getMediaByType } from "@/lib/actions"
 import type { MediaItem } from "@/lib/types"
+import { useRouter } from "next/navigation"
 
 export default function VideosPage() {
   const [activeSection, setActiveSection] = useState<string>("videos")
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [favorites, setFavorites] = useState<string[]>([])
+  const router = useRouter()
 
   useEffect(() => {
     const fetchMedia = async () => {
       try {
-        const data = await getMediaByType("video")
-        setMediaItems(data)
+        // Intentar cargar desde localStorage primero
+        const savedMedia = localStorage.getItem("mediaItems")
+        if (savedMedia) {
+          const parsedMedia = JSON.parse(savedMedia) as MediaItem[]
+          // Filtrar solo videos
+          setMediaItems(parsedMedia.filter((item) => item.type === "video"))
+        } else {
+          // Si no hay datos en localStorage, cargar desde el servidor
+          const data = await getMediaByType("video")
+          setMediaItems(data)
+        }
       } catch (error) {
         console.error("Error al cargar los videos:", error)
+
+        // Intentar cargar desde el servidor como respaldo
+        try {
+          const data = await getMediaByType("video")
+          setMediaItems(data)
+        } catch (e) {
+          console.error("Error al cargar los videos desde el servidor:", e)
+        }
       } finally {
         setIsLoading(false)
       }
@@ -45,10 +64,43 @@ export default function VideosPage() {
     })
   }
 
+  // Actualizar la función que maneja la navegación:
+  const handleNavigate = (section: string) => {
+    setActiveSection(section)
+
+    // Encontrar la categoría seleccionada
+    const findCategory = (categories: any[], id: string): any | undefined => {
+      for (const category of categories) {
+        if (category.id === id) return category
+        if (category.subcategories) {
+          const found = findCategory(category.subcategories, id)
+          if (found) return found
+        }
+      }
+      return undefined
+    }
+
+    // Simular las categorías que están en MainNavigation
+    const categories = [
+      { id: "home", path: "/" },
+      { id: "images", path: "/images" },
+      { id: "videos", path: "/videos" },
+      { id: "upload", path: "/upload" },
+      { id: "favorites", path: "/favorites" },
+      { id: "recent", path: "/recent" },
+    ]
+
+    const selectedCategory = findCategory(categories, section)
+
+    if (selectedCategory?.path) {
+      router.push(selectedCategory.path)
+    }
+  }
+
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-background">
       {/* Sidebar Navigation */}
-      <MainNavigation activeSection={activeSection} onNavigate={setActiveSection} />
+      <MainNavigation activeSection={activeSection} onNavigate={handleNavigate} />
 
       {/* Main Content */}
       <main className="flex-1 min-h-screen">

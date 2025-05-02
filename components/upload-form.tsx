@@ -11,6 +11,8 @@ import { toast } from "@/components/ui/use-toast"
 import { uploadMedia } from "@/lib/actions"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useRouter } from "next/navigation"
+import { AlertCircle } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 // Nuevas categorías
 const mediaCategories = ["Amateur", "Famosas", "Monica", "Estudio"]
@@ -21,6 +23,7 @@ export default function UploadForm() {
   const [title, setTitle] = useState("")
   const [category, setCategory] = useState("")
   const [isUploading, setIsUploading] = useState(false)
+  const [showAlert, setShowAlert] = useState(false)
   const router = useRouter()
 
   // Reset form when type changes
@@ -52,7 +55,12 @@ export default function UploadForm() {
     setIsUploading(true)
 
     try {
-      await uploadMedia(url, type, title, category.toLowerCase())
+      const newMedia = await uploadMedia(url, type, title, category.toLowerCase())
+
+      // Actualizar localStorage con el nuevo medio
+      const savedMedia = localStorage.getItem("mediaItems")
+      const mediaItems = savedMedia ? JSON.parse(savedMedia) : []
+      localStorage.setItem("mediaItems", JSON.stringify([newMedia, ...mediaItems]))
 
       toast({
         title: "Éxito",
@@ -61,13 +69,17 @@ export default function UploadForm() {
       setUrl("")
       setTitle("")
       setCategory("")
+      setShowAlert(true)
 
-      // Redirigir a la página correspondiente después de subir
-      if (type === "image") {
-        router.push("/images")
-      } else {
-        router.push("/videos")
-      }
+      // Esperar 2 segundos antes de redirigir
+      setTimeout(() => {
+        // Redirigir a la página correspondiente después de subir
+        if (type === "image") {
+          router.push("/images")
+        } else {
+          router.push("/videos")
+        }
+      }, 2000)
     } catch (error) {
       toast({
         title: "Error",
@@ -79,8 +91,20 @@ export default function UploadForm() {
     }
   }
 
+  const handleCancel = () => {
+    router.back() // Volver a la página anterior
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6 bg-card p-6 rounded-lg shadow-sm border border-muted">
+      {showAlert && (
+        <Alert className="bg-accent/20 border-accent text-white mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>¡Medio subido correctamente!</AlertTitle>
+          <AlertDescription>Redirigiendo a la galería...</AlertDescription>
+        </Alert>
+      )}
+
       <Tabs defaultValue="basic" className="w-full">
         <TabsList className="grid grid-cols-2 mb-4 bg-muted">
           <TabsTrigger value="basic" className="data-[state=active]:bg-accent data-[state=active]:text-white">
@@ -168,16 +192,32 @@ export default function UploadForm() {
                   <li>Las URLs de imágenes directas deben terminar con extensiones como .jpg, .png, .webp</li>
                   <li>Las URLs de videos directos deben terminar con extensiones como .mp4, .webm</li>
                   <li>Para videos de YouTube, usa el enlace completo (ej: https://www.youtube.com/watch?v=VIDEO_ID)</li>
+                  <li>Para videos de catbox.moe, usa el enlace directo al archivo .mp4</li>
                 </ul>
+              </div>
+
+              <div>
+                <p className="font-medium mb-2">Protección de contenido:</p>
+                <p>Todo el contenido subido estará protegido contra descargas y capturas de pantalla.</p>
               </div>
             </div>
           </div>
         </TabsContent>
       </Tabs>
 
-      <Button type="submit" className="w-full bg-accent hover:bg-accent/90 text-white" disabled={isUploading}>
-        {isUploading ? "Subiendo..." : "Subir Medio"}
-      </Button>
+      <div className="flex justify-between gap-4">
+        <Button
+          type="button"
+          variant="outline"
+          className="w-1/3 border-muted hover:bg-muted hover:text-accent"
+          onClick={handleCancel}
+        >
+          Cancelar
+        </Button>
+        <Button type="submit" className="w-2/3 bg-accent hover:bg-accent/90 text-white" disabled={isUploading}>
+          {isUploading ? "Subiendo..." : "Subir Medio"}
+        </Button>
+      </div>
     </form>
   )
 }

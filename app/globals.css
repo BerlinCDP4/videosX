@@ -35,3 +35,59 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Estilos para prevenir selección y descargas */
+.no-select {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+.no-download {
+  pointer-events: none;
+}
+
+/* Estilos para mejorar la adaptabilidad */
+@media (max-width: 640px) {
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+/* Animaciones */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+/* Estilos para marca de agua */
+.watermark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 10;
+  opacity: 0.3;
+}
+
+.watermark-text {
+  font-size: 2rem;
+  font-weight: bold;
+  color: white;
+  transform: rotate(-30deg);
+  background-color: rgba(0, 0, 0, 0.3);
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+}
