@@ -1,0 +1,146 @@
+"use client"
+
+import { useEffect, useRef } from "react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
+import { X, Heart } from "lucide-react"
+import Image from "next/image"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import type { MediaItem } from "@/lib/types"
+
+interface MediaViewerProps {
+  item: MediaItem
+  onClose: () => void
+  isFavorite: boolean
+  onToggleFavorite: () => void
+}
+
+export default function MediaViewer({ item, onClose, isFavorite, onToggleFavorite }: MediaViewerProps) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+
+  // Handle keyboard navigation for TV interfaces
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose()
+      }
+
+      // Video controls with keyboard
+      if (item.type === "video" && videoRef.current) {
+        if (e.key === " " || e.key === "k") {
+          if (videoRef.current.paused) {
+            videoRef.current.play()
+          } else {
+            videoRef.current.pause()
+          }
+          e.preventDefault()
+        } else if (e.key === "ArrowRight") {
+          videoRef.current.currentTime += 10
+          e.preventDefault()
+        } else if (e.key === "ArrowLeft") {
+          videoRef.current.currentTime -= 10
+          e.preventDefault()
+        } else if (e.key === "f") {
+          if (document.fullscreenElement) {
+            document.exitFullscreen()
+          } else {
+            videoRef.current.requestFullscreen()
+          }
+          e.preventDefault()
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [item, onClose])
+
+  // Translate category
+  const translateCategory = (category: string) => {
+    const translations: Record<string, string> = {
+      amateur: "Amateur",
+      famosas: "Famosas",
+      monica: "Monica",
+      estudio: "Estudio",
+    }
+
+    return translations[category] || category
+  }
+
+  // Translate media type
+  const translateType = (type: string) => {
+    const translations: Record<string, string> = {
+      image: "Imagen",
+      video: "Video",
+    }
+
+    return translations[type] || type
+  }
+
+  // Render content based on media type
+  const renderContent = () => {
+    switch (item.type) {
+      case "image":
+        return (
+          <div className="relative w-full aspect-[16/9]">
+            <Image
+              src={item.url || "/placeholder.svg"}
+              alt={item.title || "Imagen"}
+              fill
+              className="object-contain"
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 80vw, 1200px"
+            />
+          </div>
+        )
+      case "video":
+        return (
+          <div className="relative w-full aspect-[16/9]">
+            <video
+              ref={videoRef}
+              src={item.url}
+              controls
+              className="w-full h-full"
+              poster={item.thumbnail}
+              controlsList="nodownload"
+              playsInline
+            >
+              Tu navegador no soporta la etiqueta de video.
+            </video>
+          </div>
+        )
+      default:
+        return <div>Tipo de medio no soportado</div>
+    }
+  }
+
+  return (
+    <Dialog open={!!item} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-5xl w-[95vw] bg-card border-muted">
+        <DialogHeader className="flex flex-row items-center justify-between">
+          <div className="flex flex-col">
+            <DialogTitle>{item.title || "Sin título"}</DialogTitle>
+            <div className="flex items-center flex-wrap gap-2 mt-1">
+              <Badge variant="outline" className="capitalize bg-muted text-accent border-accent">
+                {translateCategory(item.category || "sin categoría")}
+              </Badge>
+              <span className="text-xs text-gray-400 capitalize">{translateType(item.type)}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={onToggleFavorite} className="rounded-full hover:text-accent">
+              <Heart className={`h-5 w-5 ${isFavorite ? "fill-accent text-accent" : ""}`} />
+              <span className="sr-only">Favorito</span>
+            </Button>
+            <DialogClose className="rounded-full hover:text-accent">
+              <X className="h-4 w-4" />
+              <span className="sr-only">Cerrar</span>
+            </DialogClose>
+          </div>
+        </DialogHeader>
+        <div className="mt-4">{renderContent()}</div>
+      </DialogContent>
+    </Dialog>
+  )
+}

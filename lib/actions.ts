@@ -1,0 +1,107 @@
+"use server"
+
+import type { MediaItem } from "./types"
+import { revalidatePath } from "next/cache"
+
+// Base de datos vacía para que solo se muestren los medios que agregues
+let mediaDatabase: MediaItem[] = []
+
+export async function getMedia(): Promise<MediaItem[]> {
+  // Simular retraso de API
+  await new Promise((resolve) => setTimeout(resolve, 500))
+
+  // Ordenar por más reciente primero
+  return [...mediaDatabase].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+}
+
+export async function getMediaByType(type: "image" | "video"): Promise<MediaItem[]> {
+  // Obtener medios por tipo
+  const media = await getMedia()
+  return media.filter((item) => item.type === type)
+}
+
+export async function getMediaByCategory(category: string): Promise<MediaItem[]> {
+  // Obtener medios por categoría
+  const media = await getMedia()
+  return media.filter((item) => item.category === category)
+}
+
+export async function getFavorites(favoriteIds: string[]): Promise<MediaItem[]> {
+  // Obtener medios favoritos
+  const media = await getMedia()
+  return media.filter((item) => favoriteIds.includes(item.id))
+}
+
+export async function getRecentMedia(limit = 10): Promise<MediaItem[]> {
+  // Obtener medios recientes
+  const media = await getMedia()
+  return media.slice(0, limit)
+}
+
+export async function uploadMedia(url: string, type: string, title: string, category: string): Promise<MediaItem> {
+  // Validar URL
+  try {
+    new URL(url)
+  } catch (e) {
+    throw new Error("URL inválida")
+  }
+
+  // Validar tipo
+  if (type !== "image" && type !== "video") {
+    throw new Error("Tipo de medio inválido")
+  }
+
+  let thumbnail: string | undefined
+
+  // Procesar según el tipo
+  if (type === "video") {
+    // Intentar extraer miniatura del video
+    // Para YouTube
+    if (url.includes("youtube.com") || url.includes("youtu.be")) {
+      const videoId = url.includes("youtu.be")
+        ? url.split("/").pop()
+        : url.includes("v=")
+          ? new URL(url).searchParams.get("v")
+          : null
+
+      if (videoId) {
+        thumbnail = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
+      }
+    }
+    // Para Vimeo
+    else if (url.includes("vimeo.com")) {
+      // En una implementación real, se haría una llamada a la API de Vimeo
+      // Para este ejemplo, usamos un placeholder
+      thumbnail = "/placeholder.svg?height=400&width=600"
+    }
+    // Para otros videos, intentar usar el primer fotograma como miniatura
+    // En una implementación real, esto requeriría procesamiento del lado del servidor
+    else {
+      thumbnail = "/placeholder.svg?height=400&width=600"
+    }
+  }
+
+  // Crear nuevo elemento de medio
+  const newMedia: MediaItem = {
+    id: Date.now().toString(),
+    title: title || "Sin título",
+    url: url,
+    type: type as "image" | "video",
+    category: category.toLowerCase(),
+    thumbnail,
+    createdAt: new Date().toISOString(),
+  }
+
+  // Añadir a la base de datos
+  mediaDatabase = [newMedia, ...mediaDatabase]
+
+  // Revalidar la ruta para actualizar la UI
+  revalidatePath("/")
+  revalidatePath("/upload")
+  revalidatePath("/images")
+  revalidatePath("/videos")
+  revalidatePath("/favorites")
+  revalidatePath("/recent")
+
+  return newMedia
+}
