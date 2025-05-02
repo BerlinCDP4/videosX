@@ -9,12 +9,14 @@ import { Button } from "@/components/ui/button"
 import { Upload } from "lucide-react"
 import Link from "next/link"
 import Gallery from "@/components/gallery"
+import { useRouter } from "next/navigation"
 
 export default function Home() {
   const [activeSection, setActiveSection] = useState<string>("home")
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [favorites, setFavorites] = useState<string[]>([])
+  const router = useRouter()
 
   useEffect(() => {
     const fetchMedia = async () => {
@@ -48,10 +50,44 @@ export default function Home() {
     })
   }
 
+  // Actualizar la función que maneja la navegación:
+
+  const handleNavigate = (section: string) => {
+    setActiveSection(section)
+
+    // Encontrar la categoría seleccionada
+    const findCategory = (categories: any[], id: string): any | undefined => {
+      for (const category of categories) {
+        if (category.id === id) return category
+        if (category.subcategories) {
+          const found = findCategory(category.subcategories, id)
+          if (found) return found
+        }
+      }
+      return undefined
+    }
+
+    // Simular las categorías que están en MainNavigation
+    const categories = [
+      { id: "home", path: "/" },
+      { id: "images", path: "/images" },
+      { id: "videos", path: "/videos" },
+      { id: "upload", path: "/upload" },
+      { id: "favorites", path: "/favorites" },
+      { id: "recent", path: "/recent" },
+    ]
+
+    const selectedCategory = findCategory(categories, section)
+
+    if (selectedCategory?.path && selectedCategory.path !== "/") {
+      router.push(selectedCategory.path)
+    }
+  }
+
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-background">
       {/* Sidebar Navigation */}
-      <MainNavigation activeSection={activeSection} onNavigate={setActiveSection} />
+      <MainNavigation activeSection={activeSection} onNavigate={handleNavigate} />
 
       {/* Main Content */}
       <main className="flex-1 min-h-screen">

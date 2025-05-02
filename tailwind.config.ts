@@ -1,5 +1,4 @@
 import type { Config } from "tailwindcss"
-const shadcnConfig = require("./node_modules/ui/tailwind.config.js")
 
 const config = {
   darkMode: ["class"],
@@ -20,7 +19,6 @@ const config = {
       },
     },
     extend: {
-      ...shadcnConfig.theme.extend,
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -85,7 +83,7 @@ const config = {
       },
     },
   },
-  plugins: [...shadcnConfig.plugins, require("tailwindcss-animate")],
+  plugins: [require("tailwindcss-animate")],
 } satisfies Config
 
 export default config

@@ -58,11 +58,13 @@ export async function uploadMedia(url: string, type: string, title: string, cate
     // Intentar extraer miniatura del video
     // Para YouTube
     if (url.includes("youtube.com") || url.includes("youtu.be")) {
-      const videoId = url.includes("youtu.be")
-        ? url.split("/").pop()
-        : url.includes("v=")
-          ? new URL(url).searchParams.get("v")
-          : null
+      let videoId = null
+
+      if (url.includes("youtu.be")) {
+        videoId = url.split("/").pop()?.split("?")[0]
+      } else if (url.includes("v=")) {
+        videoId = new URL(url).searchParams.get("v")
+      }
 
       if (videoId) {
         thumbnail = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
@@ -74,8 +76,7 @@ export async function uploadMedia(url: string, type: string, title: string, cate
       // Para este ejemplo, usamos un placeholder
       thumbnail = "/placeholder.svg?height=400&width=600"
     }
-    // Para otros videos, intentar usar el primer fotograma como miniatura
-    // En una implementación real, esto requeriría procesamiento del lado del servidor
+    // Para otros videos, usar un placeholder
     else {
       thumbnail = "/placeholder.svg?height=400&width=600"
     }

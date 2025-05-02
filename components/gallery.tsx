@@ -6,6 +6,9 @@ import MediaCard from "@/components/media-card"
 import MediaViewer from "@/components/media-viewer"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { MediaItem } from "@/lib/types"
+import Link from "next/link"
+import { Upload } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 interface GalleryProps {
   mediaItems: MediaItem[]
@@ -100,8 +103,13 @@ export default function Gallery({
       </div>
 
       {filteredMedia.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-gray-400">No se encontraron medios. ¡Sube algunos para comenzar!</p>
+        <div className="text-center py-12 bg-card rounded-lg border border-muted p-8">
+          <p className="text-gray-400 mb-4">No se encontraron medios. ¡Sube algunos para comenzar!</p>
+          <Button asChild className="bg-accent hover:bg-accent/90 text-white">
+            <Link href="/upload">
+              <Upload className="mr-2 h-4 w-4" /> Subir Nuevo Medio
+            </Link>
+          </Button>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

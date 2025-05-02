@@ -8,6 +8,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { ChevronDown, ChevronRight, Film, ImageIcon, Menu, Home, Star, Clock, Upload } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useMediaQuery } from "@/hooks/use-media-query"
+import { useRouter } from "next/navigation"
 
 interface Category {
   id: string
@@ -76,6 +77,8 @@ interface MainNavigationProps {
 export function MainNavigation({ activeSection, onNavigate }: MainNavigationProps) {
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({})
   const isMobile = useMediaQuery("(max-width: 768px)")
+  const router = useRouter()
+  const [setActiveSection] = useState<string>(activeSection)
 
   const toggleCategory = (categoryName: string) => {
     setOpenCategories((prev) => ({
@@ -85,7 +88,25 @@ export function MainNavigation({ activeSection, onNavigate }: MainNavigationProp
   }
 
   const handleNavigation = (categoryId: string) => {
-    onNavigate(categoryId)
+    // Encontrar la categoría seleccionada
+    const findCategory = (categories: Category[], id: string): Category | undefined => {
+      for (const category of categories) {
+        if (category.id === id) return category
+        if (category.subcategories) {
+          const found = findCategory(category.subcategories, id)
+          if (found) return found
+        }
+      }
+      return undefined
+    }
+
+    const selectedCategory = findCategory(categories, categoryId)
+
+    if (selectedCategory?.path) {
+      router.push(selectedCategory.path)
+    }
+
+    setActiveSection(categoryId)
 
     // On mobile, close the sheet after navigation
     if (isMobile) {

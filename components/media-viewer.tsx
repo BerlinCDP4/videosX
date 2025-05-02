@@ -102,7 +102,7 @@ export default function MediaViewer({ item, onClose, isFavorite, onToggleFavorit
               src={item.url}
               controls
               className="w-full h-full"
-              poster={item.thumbnail}
+              poster={item.thumbnail || "/placeholder.svg?height=400&width=600"}
               controlsList="nodownload"
               playsInline
             >
