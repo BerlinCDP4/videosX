@@ -6,5 +6,4 @@ export interface MediaItem {
   category: string
   thumbnail?: string
   createdAt: string
-  protected?: boolean // Indica si el medio está protegido contra descargas
 }

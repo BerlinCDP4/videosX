@@ -3,7 +3,7 @@
 import type React from "react"
 
 import Image from "next/image"
-import { Play, Heart, Lock } from "lucide-react"
+import { Play, Heart } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -21,54 +21,13 @@ export default function MediaCard({ item, onClick, isFavorite, onToggleFavorite 
   const videoRef = useRef<HTMLVideoElement>(null)
   const [thumbnailUrl, setThumbnailUrl] = useState<string>(item.thumbnail || "/placeholder.svg?height=400&width=600")
 
-  // Generar miniatura para videos de catbox.moe
+  // Reemplazar todo el useEffect para la generación de miniaturas con este código más simple
   useEffect(() => {
-    if (item.type === "video" && item.url.includes("catbox.moe") && videoRef.current) {
-      const video = videoRef.current
-
-      // Crear un elemento de video oculto para generar la miniatura
-      video.src = item.url
-      video.muted = true
-      video.preload = "metadata"
-
-      // Cuando el video esté cargado, extraer un fotograma como miniatura
-      const handleLoadedData = () => {
-        // Intentar capturar un fotograma a los 2 segundos
-        video.currentTime = 2
-
-        // Cuando el tiempo cambie, capturar el fotograma
-        const handleTimeUpdate = () => {
-          try {
-            // Crear un canvas para capturar el fotograma
-            const canvas = document.createElement("canvas")
-            canvas.width = video.videoWidth
-            canvas.height = video.videoHeight
-
-            // Dibujar el fotograma en el canvas
-            const ctx = canvas.getContext("2d")
-            if (ctx) {
-              ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-              // Convertir el canvas a una URL de datos
-              const dataUrl = canvas.toDataURL("image/jpeg")
-              setThumbnailUrl(dataUrl)
-            }
-
-            // Ya tenemos el fotograma, podemos pausar el video
-            video.pause()
-            video.removeEventListener("timeupdate", handleTimeUpdate)
-          } catch (error) {
-            console.error("Error al generar miniatura:", error)
-          }
-        }
-
-        video.addEventListener("timeupdate", handleTimeUpdate)
-      }
-
-      video.addEventListener("loadeddata", handleLoadedData)
-
-      return () => {
-        video.removeEventListener("loadeddata", handleLoadedData)
+    if (item.type === "video") {
+      // Para videos de catbox.moe y otros servicios directos
+      if (item.url.includes("catbox.moe") || item.url.endsWith(".mp4") || item.url.endsWith(".webm")) {
+        // Usar una miniatura predeterminada para videos
+        setThumbnailUrl("/placeholder.svg?height=400&width=600&text=Video")
       }
     }
   }, [item])
@@ -124,11 +83,7 @@ export default function MediaCard({ item, onClick, isFavorite, onToggleFavorite 
           </Button>
         </div>
 
-        <div className="absolute top-2 left-2 z-20">
-          <Badge variant="outline" className="bg-black/30 border-none text-white">
-            <Lock className="h-3 w-3 mr-1" /> Protegido
-          </Badge>
-        </div>
+        {/* Eliminar este bloque completo */}
 
         <div className="aspect-video relative">
           {item.type === "image" ? (

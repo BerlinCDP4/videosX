@@ -74,22 +74,16 @@ export async function uploadMedia(url: string, type: string, title: string, cate
     // Para Vimeo
     else if (url.includes("vimeo.com")) {
       // En una implementación real, se haría una llamada a la API de Vimeo
-      thumbnail = "/placeholder.svg?height=400&width=600"
+      thumbnail = "/placeholder.svg?height=400&width=600&text=Video"
     }
     // Para catbox.moe y otros servicios de alojamiento de videos
     else if (url.includes("catbox.moe") || url.endsWith(".mp4") || url.endsWith(".webm")) {
-      // Generar una miniatura basada en el dominio
-      if (url.includes("catbox.moe")) {
-        // Usar la misma URL como miniatura, el componente de video intentará extraer un fotograma
-        thumbnail = url
-      } else {
-        // Para otros servicios, usar un placeholder
-        thumbnail = "/placeholder.svg?height=400&width=600"
-      }
+      // Usar un placeholder genérico para videos
+      thumbnail = "/placeholder.svg?height=400&width=600&text=Video"
     }
     // Para otros videos, usar un placeholder
     else {
-      thumbnail = "/placeholder.svg?height=400&width=600"
+      thumbnail = "/placeholder.svg?height=400&width=600&text=Video"
     }
   }
 
@@ -102,7 +96,6 @@ export async function uploadMedia(url: string, type: string, title: string, cate
     category: category.toLowerCase(),
     thumbnail,
     createdAt: new Date().toISOString(),
-    protected: true, // Marcar como protegido por defecto
   }
 
   // Añadir a la base de datos
