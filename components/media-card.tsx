@@ -3,7 +3,7 @@
 import type React from "react"
 
 import Image from "next/image"
-import { Play, Heart, Trash2 } from "lucide-react"
+import { Heart, Trash2 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -124,7 +124,7 @@ export default function MediaCard({ item, onClick, isFavorite, onToggleFavorite,
         <div className="aspect-video relative">
           {item.type === "image" ? (
             <Image
-              src={item.url || "/placeholder.svg"}
+              src={item.url || "/placeholder.svg?height=400&width=600"}
               alt={item.title || "Imagen"}
               fill
               className="object-cover"
@@ -134,11 +134,6 @@ export default function MediaCard({ item, onClick, isFavorite, onToggleFavorite,
             />
           ) : item.type === "video" ? (
             <>
-              <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-10">
-                <div className="bg-black/70 rounded-full p-3">
-                  <Play className="h-8 w-8 text-accent" />
-                </div>
-              </div>
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent z-5"></div>
               <Image
                 src={thumbnailUrl || "/placeholder.svg"}

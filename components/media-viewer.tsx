@@ -136,7 +136,7 @@ export default function MediaViewer({ item, onClose, isFavorite, onToggleFavorit
         return (
           <div className="relative w-full aspect-[16/9]">
             <Image
-              src={item.url || "/placeholder.svg"}
+              src={item.url || "/placeholder.svg?height=400&width=600"}
               alt={item.title || "Imagen"}
               fill
               className="object-contain"

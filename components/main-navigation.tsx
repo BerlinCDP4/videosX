@@ -5,10 +5,12 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { ChevronDown, ChevronRight, Film, ImageIcon, Menu, Home, Star, Clock, Upload } from "lucide-react"
+import { ChevronDown, ChevronRight, Film, ImageIcon, Menu, Home, Star, Clock, Upload, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useRouter } from "next/navigation"
+import { UserAvatar } from "@/components/user-avatar"
+import { useUser } from "@/contexts/user-context"
 
 interface Category {
   id: string
@@ -67,6 +69,12 @@ const categories: Category[] = [
     icon: <Clock className="h-5 w-5" />,
     path: "/recent",
   },
+  {
+    id: "profile",
+    name: "Mi Perfil",
+    icon: <User className="h-5 w-5" />,
+    path: "/profile",
+  },
 ]
 
 interface MainNavigationProps {
@@ -78,7 +86,7 @@ export function MainNavigation({ activeSection, onNavigate }: MainNavigationProp
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({})
   const isMobile = useMediaQuery("(max-width: 768px)")
   const router = useRouter()
-  const [setActiveSection] = useState<string>(activeSection)
+  const { isAuthenticated, user } = useUser()
 
   const toggleCategory = (categoryName: string) => {
     setOpenCategories((prev) => ({
@@ -106,7 +114,7 @@ export function MainNavigation({ activeSection, onNavigate }: MainNavigationProp
       router.push(selectedCategory.path)
     }
 
-    setActiveSection(categoryId)
+    onNavigate(categoryId)
 
     // On mobile, close the sheet after navigation
     if (isMobile) {
@@ -122,6 +130,20 @@ export function MainNavigation({ activeSection, onNavigate }: MainNavigationProp
     const isOpen = openCategories[category.name]
     const isActive = category.id === activeSection
 
+    // Si es la categoría de perfil y el usuario no está autenticado, redirigir a login
+    const handleCategoryClick = () => {
+      if (category.id === "profile" && !isAuthenticated) {
+        router.push("/auth/login")
+        return
+      }
+
+      if (hasSubcategories) {
+        toggleCategory(category.name)
+      } else {
+        handleNavigation(category.id)
+      }
+    }
+
     return (
       <div>
         <div
@@ -136,20 +158,10 @@ export function MainNavigation({ activeSection, onNavigate }: MainNavigationProp
           style={{ paddingLeft: `${level * 12 + 12}px` }}
           tabIndex={0}
           role="button"
-          onClick={() => {
-            if (hasSubcategories) {
-              toggleCategory(category.name)
-            } else {
-              handleNavigation(category.id)
-            }
-          }}
+          onClick={handleCategoryClick}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
-              if (hasSubcategories) {
-                toggleCategory(category.name)
-              } else {
-                handleNavigation(category.id)
-              }
+              handleCategoryClick()
             }
           }}
         >
@@ -187,6 +199,15 @@ export function MainNavigation({ activeSection, onNavigate }: MainNavigationProp
   const NavigationContent = () => (
     <ScrollArea className="h-full">
       <div className="py-4 px-2">
+        <div className="flex items-center gap-3 px-4 mb-6">
+          <UserAvatar />
+          <div>
+            <p className="font-medium text-sm">{isAuthenticated && user ? user.name : "Invitado"}</p>
+            <p className="text-xs text-muted-foreground">
+              {isAuthenticated && user ? user.email : "Inicia sesión para más funciones"}
+            </p>
+          </div>
+        </div>
         <h2 className="mb-4 px-4 text-lg font-semibold tracking-tight text-accent">Categorías</h2>
         <div className="space-y-1">
           {categories.map((category) => (
