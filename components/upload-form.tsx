@@ -13,7 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useRouter } from "next/navigation"
 import { AlertCircle } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { useUser } from "@/contexts/user-context"
+import ThumbnailGenerator from "@/components/thumbnail-generator"
+import { useAuth } from "@/contexts/auth-context"
 
 // Nuevas categorías
 const mediaCategories = ["Amateur", "Famosas", "Monica", "Estudio"]
@@ -25,12 +26,17 @@ export default function UploadForm() {
   const [category, setCategory] = useState("")
   const [isUploading, setIsUploading] = useState(false)
   const [showAlert, setShowAlert] = useState(false)
+  const [customThumbnail, setCustomThumbnail] = useState<string | null>(null)
+  const [showThumbnailGenerator, setShowThumbnailGenerator] = useState(false)
   const router = useRouter()
-  const { userId } = useUser()
+  const { user } = useAuth()
+  const [isLoading, setIsLoading] = useState(false)
 
   // Reset form when type changes
   useEffect(() => {
     setCategory("")
+    setCustomThumbnail(null)
+    setShowThumbnailGenerator(false)
   }, [type])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -54,10 +60,37 @@ export default function UploadForm() {
       return
     }
 
+    // Si es un video y no tiene miniatura personalizada
+    if (type === "video" && !customThumbnail) {
+      toast({
+        title: "Error",
+        description: "Por favor, genera una miniatura para el video",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "Debes iniciar sesión para subir medios",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsUploading(true)
+    setIsLoading(true)
 
     try {
-      const newMedia = await uploadMedia(url, type, title, category.toLowerCase(), userId)
+      const newMedia = await uploadMedia(
+        url,
+        type,
+        title,
+        category.toLowerCase(),
+        user.id,
+        customThumbnail || undefined,
+      )
 
       // Actualizar localStorage con el nuevo medio
       const savedMedia = localStorage.getItem("mediaItems")
@@ -71,6 +104,8 @@ export default function UploadForm() {
       setUrl("")
       setTitle("")
       setCategory("")
+      setCustomThumbnail(null)
+      setShowThumbnailGenerator(false)
       setShowAlert(true)
 
       // Esperar 2 segundos antes de redirigir
@@ -90,11 +125,16 @@ export default function UploadForm() {
       })
     } finally {
       setIsUploading(false)
+      setIsLoading(false)
     }
   }
 
   const handleCancel = () => {
     router.back() // Volver a la página anterior
+  }
+
+  const handleThumbnailGenerated = (thumbnailUrl: string) => {
+    setCustomThumbnail(thumbnailUrl)
   }
 
   return (
@@ -181,6 +221,52 @@ export default function UploadForm() {
               </Select>
             </div>
           </div>
+
+          {/* Mostrar generador de miniaturas solo para videos */}
+          {type === "video" && url && (
+            <div className="mt-6">
+              <div className="flex justify-between items-center mb-4">
+                <Label>Miniatura del Video</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowThumbnailGenerator(!showThumbnailGenerator)}
+                  className="text-sm"
+                >
+                  {showThumbnailGenerator ? "Ocultar generador" : "Generar miniatura"}
+                </Button>
+              </div>
+
+              {showThumbnailGenerator ? (
+                <ThumbnailGenerator videoUrl={url} onThumbnailGenerated={handleThumbnailGenerated} />
+              ) : customThumbnail ? (
+                <div className="relative aspect-video w-full max-w-md mx-auto border border-muted rounded-md overflow-hidden">
+                  <img
+                    src={customThumbnail || "/placeholder.svg"}
+                    alt="Miniatura personalizada"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute bottom-2 right-2">
+                    <Button type="button" size="sm" variant="secondary" onClick={() => setShowThumbnailGenerator(true)}>
+                      Cambiar
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-muted p-4 rounded-md text-center">
+                  <p className="text-muted-foreground mb-2">Es obligatorio generar una miniatura para los videos.</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowThumbnailGenerator(true)}
+                    className="mx-auto"
+                  >
+                    Generar miniatura
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="advanced" className="space-y-6">
@@ -216,8 +302,8 @@ export default function UploadForm() {
         >
           Cancelar
         </Button>
-        <Button type="submit" className="w-2/3 bg-accent hover:bg-accent/90 text-white" disabled={isUploading}>
-          {isUploading ? "Subiendo..." : "Subir Medio"}
+        <Button type="submit" className="w-2/3 bg-accent hover:bg-accent/90 text-white" disabled={isLoading}>
+          {isLoading ? "Subiendo..." : "Subir Medio"}
         </Button>
       </div>
     </form>

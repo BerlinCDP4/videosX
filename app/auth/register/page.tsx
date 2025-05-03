@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { useUser } from "@/contexts/user-context"
+import { signIn } from "next-auth/react"
 
 export default function RegisterPage() {
   const [name, setName] = useState("")
@@ -50,6 +51,12 @@ export default function RegisterPage() {
       })
 
       if (result.success) {
+        // Iniciar sesión automáticamente después del registro
+        await signIn("credentials", {
+          redirect: false,
+          email,
+          password,
+        })
         router.push("/")
       } else {
         setError(result.error || "Error al registrar usuario")

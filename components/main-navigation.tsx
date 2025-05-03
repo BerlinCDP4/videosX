@@ -5,12 +5,12 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { ChevronDown, ChevronRight, Film, ImageIcon, Menu, Home, Star, Clock, Upload, User } from "lucide-react"
+import { ChevronDown, ChevronRight, Film, ImageIcon, Menu, Home, Star, Clock, Upload, User, LogIn } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useRouter } from "next/navigation"
 import { UserAvatar } from "@/components/user-avatar"
-import { useUser } from "@/contexts/user-context"
+import { useAuth } from "@/contexts/auth-context"
 
 interface Category {
   id: string
@@ -18,6 +18,7 @@ interface Category {
   icon?: React.ReactNode
   path?: string
   subcategories?: Category[]
+  requiresAuth?: boolean
 }
 
 const categories: Category[] = [
@@ -56,6 +57,7 @@ const categories: Category[] = [
     name: "Subir Medio",
     icon: <Upload className="h-5 w-5" />,
     path: "/upload",
+    requiresAuth: true,
   },
   {
     id: "favorites",
@@ -74,6 +76,7 @@ const categories: Category[] = [
     name: "Mi Perfil",
     icon: <User className="h-5 w-5" />,
     path: "/profile",
+    requiresAuth: true,
   },
 ]
 
@@ -86,7 +89,7 @@ export function MainNavigation({ activeSection, onNavigate }: MainNavigationProp
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({})
   const isMobile = useMediaQuery("(max-width: 768px)")
   const router = useRouter()
-  const { isAuthenticated, user } = useUser()
+  const { user, isAuthenticated, logout } = useAuth()
 
   const toggleCategory = (categoryName: string) => {
     setOpenCategories((prev) => ({
@@ -95,7 +98,13 @@ export function MainNavigation({ activeSection, onNavigate }: MainNavigationProp
     }))
   }
 
-  const handleNavigation = (categoryId: string) => {
+  const handleNavigation = (categoryId: string, requiresAuth = false) => {
+    // Si requiere autenticación y el usuario no está autenticado, redirigir a login
+    if (requiresAuth && !isAuthenticated) {
+      router.push(`/auth/login?callbackUrl=${encodeURIComponent(`/${categoryId}`)}`)
+      return
+    }
+
     // Encontrar la categoría seleccionada
     const findCategory = (categories: Category[], id: string): Category | undefined => {
       for (const category of categories) {
@@ -125,22 +134,21 @@ export function MainNavigation({ activeSection, onNavigate }: MainNavigationProp
     }
   }
 
+  const handleLogout = () => {
+    logout()
+    router.push("/")
+  }
+
   const CategoryItem = ({ category, level = 0 }: { category: Category; level?: number }) => {
     const hasSubcategories = category.subcategories && category.subcategories.length > 0
     const isOpen = openCategories[category.name]
     const isActive = category.id === activeSection
 
-    // Si es la categoría de perfil y el usuario no está autenticado, redirigir a login
     const handleCategoryClick = () => {
-      if (category.id === "profile" && !isAuthenticated) {
-        router.push("/auth/login")
-        return
-      }
-
       if (hasSubcategories) {
         toggleCategory(category.name)
       } else {
-        handleNavigation(category.id)
+        handleNavigation(category.id, category.requiresAuth)
       }
     }
 
@@ -202,10 +210,28 @@ export function MainNavigation({ activeSection, onNavigate }: MainNavigationProp
         <div className="flex items-center gap-3 px-4 mb-6">
           <UserAvatar />
           <div>
-            <p className="font-medium text-sm">{isAuthenticated && user ? user.name : "Invitado"}</p>
-            <p className="text-xs text-muted-foreground">
-              {isAuthenticated && user ? user.email : "Inicia sesión para más funciones"}
-            </p>
+            {isAuthenticated && user ? (
+              <div>
+                <p className="font-medium text-sm">{user.name}</p>
+                <p className="text-xs text-muted-foreground">{user.email}</p>
+                <Button variant="link" size="sm" className="p-0 h-auto text-xs text-accent" onClick={handleLogout}>
+                  Cerrar sesión
+                </Button>
+              </div>
+            ) : (
+              <div>
+                <p className="font-medium text-sm">Invitado</p>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="p-0 h-auto text-xs text-accent"
+                  onClick={() => router.push("/auth/login")}
+                >
+                  <LogIn className="h-3 w-3 mr-1" />
+                  Iniciar sesión
+                </Button>
+              </div>
+            )}
           </div>
         </div>
         <h2 className="mb-4 px-4 text-lg font-semibold tracking-tight text-accent">Categorías</h2>

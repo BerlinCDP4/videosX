@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { MediaItem } from "@/lib/types"
 import { useUser } from "@/contexts/user-context"
+import { useSession } from "next-auth/react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,7 +34,8 @@ export default function MediaViewer({ item, onClose, isFavorite, onToggleFavorit
   const [isVideoLoaded, setIsVideoLoaded] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const { userId } = useUser()
-  const isOwner = userId === item.userId
+  const { data: session } = useSession()
+  const isOwner = (session?.user?.id || userId) === item.userId
   const [thumbnailUrl, setThumbnailUrl] = useState<string>("/video-thumbnail.png")
 
   // Handle keyboard navigation for TV interfaces
@@ -78,8 +80,12 @@ export default function MediaViewer({ item, onClose, isFavorite, onToggleFavorit
   // Mejorar la generación de miniaturas para videos
   useEffect(() => {
     if (item.type === "video") {
+      // Si hay una miniatura personalizada, usarla
+      if (item.thumbnail) {
+        setThumbnailUrl(item.thumbnail)
+      }
       // Para videos de YouTube
-      if (item.url.includes("youtube.com") || item.url.includes("youtu.be")) {
+      else if (item.url.includes("youtube.com") || item.url.includes("youtu.be")) {
         let videoId = null
         if (item.url.includes("youtu.be")) {
           videoId = item.url.split("/").pop()?.split("?")[0]

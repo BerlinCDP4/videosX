@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import type { MediaItem } from "@/lib/types"
 import { useRef, useEffect, useState } from "react"
 import { useUser } from "@/contexts/user-context"
+import { useSession } from "next-auth/react"
 
 interface MediaCardProps {
   item: MediaItem
@@ -23,13 +24,18 @@ export default function MediaCard({ item, onClick, isFavorite, onToggleFavorite,
   const videoRef = useRef<HTMLVideoElement>(null)
   const [thumbnailUrl, setThumbnailUrl] = useState<string>("/video-thumbnail.png")
   const { userId } = useUser()
-  const isOwner = userId === item.userId
+  const { data: session } = useSession()
+  const isOwner = (session?.user?.id || userId) === item.userId
 
   // Mejorar la generación de miniaturas para videos
   useEffect(() => {
     if (item.type === "video") {
+      // Si hay una miniatura personalizada, usarla
+      if (item.thumbnail) {
+        setThumbnailUrl(item.thumbnail)
+      }
       // Para videos de YouTube
-      if (item.url.includes("youtube.com") || item.url.includes("youtu.be")) {
+      else if (item.url.includes("youtube.com") || item.url.includes("youtu.be")) {
         let videoId = null
         if (item.url.includes("youtu.be")) {
           videoId = item.url.split("/").pop()?.split("?")[0]

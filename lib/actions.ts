@@ -8,7 +8,19 @@ import { revalidatePath } from "next/cache"
 let mediaDatabase: MediaItem[] = []
 
 // Base de datos simulada para usuarios
-const userDatabase: any[] = []
+// Añadimos un usuario de prueba para facilitar el inicio de sesión
+const userDatabase: any[] = [
+  {
+    id: "1",
+    email: "usuario@ejemplo.com",
+    password: "123456", // En producción, esto debería ser un hash
+    name: "Usuario de Prueba",
+    username: "usuario_test",
+    profilePicture: "/default-avatar.png",
+    createdAt: new Date().toISOString(),
+    provider: "email",
+  },
+]
 
 // Función para cargar medios desde localStorage (se ejecuta en el cliente)
 export async function getMedia(): Promise<MediaItem[]> {
@@ -49,6 +61,7 @@ export async function uploadMedia(
   title: string,
   category: string,
   userId: string,
+  customThumbnail?: string,
 ): Promise<MediaItem> {
   // Validar URL
   try {
@@ -62,29 +75,39 @@ export async function uploadMedia(
     throw new Error("Tipo de medio inválido")
   }
 
+  // Validar que el usuario esté autenticado
+  if (!userId) {
+    throw new Error("Debes iniciar sesión para subir medios")
+  }
+
   let thumbnail: string | undefined
 
   // Procesar según el tipo
   if (type === "video") {
-    // Para YouTube
-    if (url.includes("youtube.com") || url.includes("youtu.be")) {
-      let videoId = null
+    // Si hay una miniatura personalizada, usarla
+    if (customThumbnail) {
+      thumbnail = customThumbnail
+    } else {
+      // Para YouTube
+      if (url.includes("youtube.com") || url.includes("youtu.be")) {
+        let videoId = null
 
-      if (url.includes("youtu.be")) {
-        videoId = url.split("/").pop()?.split("?")[0]
-      } else if (url.includes("v=")) {
-        videoId = new URL(url).searchParams.get("v")
+        if (url.includes("youtu.be")) {
+          videoId = url.split("/").pop()?.split("?")[0]
+        } else if (url.includes("v=")) {
+          videoId = new URL(url).searchParams.get("v")
+        }
+
+        if (videoId) {
+          thumbnail = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
+        } else {
+          thumbnail = "/video-thumbnail.png"
+        }
       }
-
-      if (videoId) {
-        thumbnail = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
-      } else {
+      // Para todos los demás videos
+      else {
         thumbnail = "/video-thumbnail.png"
       }
-    }
-    // Para todos los demás videos
-    else {
-      thumbnail = "/video-thumbnail.png"
     }
   }
 
@@ -272,42 +295,34 @@ export async function updateUserProfile(
   }
 }
 
-// Autenticación con proveedores sociales (simulado)
+// Social Login
 export async function socialLogin(
   provider: string,
   token: string,
 ): Promise<{ success: boolean; userId?: string; error?: string }> {
   try {
     // En una implementación real, aquí se verificaría el token con el proveedor
-    // y se obtendría la información del usuario
+    // y se obtendrían los datos del usuario
 
-    // Simulamos datos de usuario según el proveedor
-    const userData = {
-      email: `user_${Date.now()}@example.com`,
-      name: "Usuario Social",
-      profilePicture: "/default-avatar.png",
-      provider,
+    // Simulación de un usuario existente o nuevo
+    let user = userDatabase.find((u) => u.email === `social_${provider}@example.com`)
+
+    if (!user) {
+      // Crear un nuevo usuario simulado
+      user = {
+        id: Date.now().toString(),
+        email: `social_${provider}@example.com`,
+        password: "social_login", // No se usa, pero se requiere
+        name: `Usuario Social ${provider}`,
+        username: `social_${provider}`,
+        profilePicture: "/default-avatar.png",
+        createdAt: new Date().toISOString(),
+        provider: provider,
+      }
+      userDatabase.push(user)
     }
 
-    // Buscar si el usuario ya existe con ese proveedor y email
-    const existingUser = userDatabase.find((u) => u.provider === provider && u.email === userData.email)
-
-    if (existingUser) {
-      return { success: true, userId: existingUser.id }
-    }
-
-    // Crear nuevo usuario
-    const newUser = {
-      id: Date.now().toString(),
-      ...userData,
-      username: `user_${Date.now()}`,
-      createdAt: new Date().toISOString(),
-    }
-
-    // Añadir a la base de datos
-    userDatabase.push(newUser)
-
-    return { success: true, userId: newUser.id }
+    return { success: true, userId: user.id }
   } catch (error) {
     console.error(`Error al iniciar sesión con ${provider}:`, error)
     return { success: false, error: `Error al iniciar sesión con ${provider}` }

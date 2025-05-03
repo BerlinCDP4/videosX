@@ -1,12 +1,12 @@
 "use client"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { useUser } from "@/contexts/user-context"
+import { useAuth } from "@/contexts/auth-context"
 
 export function UserAvatar() {
-  const { user, isAuthenticated } = useUser()
+  const { user } = useAuth()
 
-  if (!isAuthenticated || !user) {
+  if (!user) {
     return (
       <Avatar>
         <AvatarFallback>U</AvatarFallback>
@@ -16,8 +16,8 @@ export function UserAvatar() {
 
   return (
     <Avatar>
-      <AvatarImage src={user.profilePicture || "/default-avatar.png"} alt={user.name} />
-      <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+      <AvatarImage src={user.image || "/default-avatar.png"} alt={user.name || ""} />
+      <AvatarFallback>{user.name?.charAt(0) || "U"}</AvatarFallback>
     </Avatar>
   )
 }
