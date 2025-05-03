@@ -9,6 +9,9 @@ import type { MediaItem } from "@/lib/types"
 import Link from "next/link"
 import { Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { deleteMedia } from "@/lib/actions"
+import { useUser } from "@/contexts/user-context"
+import { toast } from "@/components/ui/use-toast"
 
 interface GalleryProps {
   mediaItems: MediaItem[]
@@ -17,6 +20,7 @@ interface GalleryProps {
   onToggleFavorite: (id: string) => void
   showTypeFilter?: boolean
   defaultType?: string
+  onMediaDeleted?: (id: string) => void
 }
 
 export default function Gallery({
@@ -26,10 +30,12 @@ export default function Gallery({
   onToggleFavorite,
   showTypeFilter = true,
   defaultType = "all",
+  onMediaDeleted,
 }: GalleryProps) {
   const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null)
   const [activeTab, setActiveTab] = useState(defaultType)
   const [activeCategory, setActiveCategory] = useState("all")
+  const { userId } = useUser()
 
   // Get unique categories from media items
   const categories = ["all", ...new Set(mediaItems.map((item) => item.category))]
@@ -41,6 +47,37 @@ export default function Gallery({
 
     return typeMatch && categoryMatch
   })
+
+  // Manejar la eliminación de un medio
+  const handleDelete = async (id: string) => {
+    try {
+      const success = await deleteMedia(id, userId)
+
+      if (success) {
+        // Actualizar la UI eliminando el medio de la lista local
+        if (onMediaDeleted) {
+          onMediaDeleted(id)
+        }
+
+        toast({
+          title: "Éxito",
+          description: "El medio ha sido eliminado correctamente",
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: "No tienes permiso para eliminar este medio",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Ha ocurrido un error al eliminar el medio",
+        variant: "destructive",
+      })
+    }
+  }
 
   if (isLoading) {
     return (
@@ -120,6 +157,7 @@ export default function Gallery({
               onClick={() => setSelectedMedia(item)}
               isFavorite={favorites.includes(item.id)}
               onToggleFavorite={() => onToggleFavorite(item.id)}
+              onDelete={handleDelete}
             />
           ))}
         </div>
@@ -131,6 +169,7 @@ export default function Gallery({
           onClose={() => setSelectedMedia(null)}
           isFavorite={favorites.includes(selectedMedia.id)}
           onToggleFavorite={() => onToggleFavorite(selectedMedia.id)}
+          onDelete={handleDelete}
         />
       )}
     </div>

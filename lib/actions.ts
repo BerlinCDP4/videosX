@@ -40,7 +40,13 @@ export async function getRecentMedia(limit = 10): Promise<MediaItem[]> {
   return media.slice(0, limit)
 }
 
-export async function uploadMedia(url: string, type: string, title: string, category: string): Promise<MediaItem> {
+export async function uploadMedia(
+  url: string,
+  type: string,
+  title: string,
+  category: string,
+  userId: string,
+): Promise<MediaItem> {
   // Validar URL
   try {
     new URL(url)
@@ -74,16 +80,16 @@ export async function uploadMedia(url: string, type: string, title: string, cate
     // Para Vimeo
     else if (url.includes("vimeo.com")) {
       // En una implementación real, se haría una llamada a la API de Vimeo
-      thumbnail = "/placeholder.svg?height=400&width=600&text=Video"
+      thumbnail = "/video-thumbnail.png"
     }
     // Para catbox.moe y otros servicios de alojamiento de videos
     else if (url.includes("catbox.moe") || url.endsWith(".mp4") || url.endsWith(".webm")) {
-      // Usar un placeholder genérico para videos
-      thumbnail = "/placeholder.svg?height=400&width=600&text=Video"
+      // Usar un thumbnail personalizado para videos
+      thumbnail = "/video-thumbnail.png"
     }
     // Para otros videos, usar un placeholder
     else {
-      thumbnail = "/placeholder.svg?height=400&width=600&text=Video"
+      thumbnail = "/video-thumbnail.png"
     }
   }
 
@@ -96,6 +102,7 @@ export async function uploadMedia(url: string, type: string, title: string, cate
     category: category.toLowerCase(),
     thumbnail,
     createdAt: new Date().toISOString(),
+    userId: userId, // Guardar el ID del usuario que subió el medio
   }
 
   // Añadir a la base de datos
@@ -110,6 +117,34 @@ export async function uploadMedia(url: string, type: string, title: string, cate
   revalidatePath("/recent")
 
   return newMedia
+}
+
+// Función para eliminar un medio
+export async function deleteMedia(mediaId: string, userId: string): Promise<boolean> {
+  // Buscar el medio en la base de datos
+  const mediaIndex = mediaDatabase.findIndex((item) => item.id === mediaId)
+
+  // Si no se encuentra el medio, retornar false
+  if (mediaIndex === -1) {
+    return false
+  }
+
+  // Verificar que el usuario que intenta eliminar es el propietario
+  if (mediaDatabase[mediaIndex].userId !== userId) {
+    return false
+  }
+
+  // Eliminar el medio de la base de datos
+  mediaDatabase.splice(mediaIndex, 1)
+
+  // Revalidar la ruta para actualizar la UI
+  revalidatePath("/")
+  revalidatePath("/images")
+  revalidatePath("/videos")
+  revalidatePath("/favorites")
+  revalidatePath("/recent")
+
+  return true
 }
 
 // Función para sincronizar la base de datos con localStorage

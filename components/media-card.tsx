@@ -3,31 +3,50 @@
 import type React from "react"
 
 import Image from "next/image"
-import { Play, Heart } from "lucide-react"
+import { Play, Heart, Trash2 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { MediaItem } from "@/lib/types"
 import { useRef, useEffect, useState } from "react"
+import { useUser } from "@/contexts/user-context"
 
 interface MediaCardProps {
   item: MediaItem
   onClick: () => void
   isFavorite: boolean
   onToggleFavorite: () => void
+  onDelete?: (id: string) => void
 }
 
-export default function MediaCard({ item, onClick, isFavorite, onToggleFavorite }: MediaCardProps) {
+export default function MediaCard({ item, onClick, isFavorite, onToggleFavorite, onDelete }: MediaCardProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [thumbnailUrl, setThumbnailUrl] = useState<string>(item.thumbnail || "/placeholder.svg?height=400&width=600")
+  const { userId } = useUser()
+  const isOwner = userId === item.userId
 
-  // Reemplazar todo el useEffect para la generación de miniaturas con este código más simple
+  // Mejorar la generación de miniaturas para videos
   useEffect(() => {
     if (item.type === "video") {
+      // Para videos de YouTube
+      if (item.url.includes("youtube.com") || item.url.includes("youtu.be")) {
+        let videoId = null
+        if (item.url.includes("youtu.be")) {
+          videoId = item.url.split("/").pop()?.split("?")[0]
+        } else if (item.url.includes("v=")) {
+          videoId = new URL(item.url).searchParams.get("v")
+        }
+
+        if (videoId) {
+          setThumbnailUrl(`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`)
+        } else {
+          setThumbnailUrl("/placeholder.svg?height=400&width=600&text=Video")
+        }
+      }
       // Para videos de catbox.moe y otros servicios directos
-      if (item.url.includes("catbox.moe") || item.url.endsWith(".mp4") || item.url.endsWith(".webm")) {
-        // Usar una miniatura predeterminada para videos
-        setThumbnailUrl("/placeholder.svg?height=400&width=600&text=Video")
+      else if (item.url.includes("catbox.moe") || item.url.endsWith(".mp4") || item.url.endsWith(".webm")) {
+        // Usar una miniatura personalizada para videos
+        setThumbnailUrl("/video-thumbnail.png?height=400&width=600")
       }
     }
   }, [item])
@@ -59,6 +78,13 @@ export default function MediaCard({ item, onClick, isFavorite, onToggleFavorite 
     onToggleFavorite()
   }
 
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (onDelete) {
+      onDelete(item.id)
+    }
+  }
+
   return (
     <Card
       className="overflow-hidden cursor-pointer transition-transform hover:scale-[1.02] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent bg-card border-muted"
@@ -81,9 +107,20 @@ export default function MediaCard({ item, onClick, isFavorite, onToggleFavorite 
             <Heart className={`h-4 w-4 ${isFavorite ? "fill-accent text-accent" : ""}`} />
             <span className="sr-only">Favorito</span>
           </Button>
-        </div>
 
-        {/* Eliminar este bloque completo */}
+          {/* Botón de eliminar (solo visible para el propietario) */}
+          {isOwner && onDelete && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="bg-black/30 hover:bg-black/50 text-white rounded-full h-8 w-8 hover:text-destructive"
+              onClick={handleDeleteClick}
+            >
+              <Trash2 className="h-4 w-4" />
+              <span className="sr-only">Eliminar</span>
+            </Button>
+          )}
+        </div>
 
         <div className="aspect-video relative">
           {item.type === "image" ? (
@@ -103,6 +140,7 @@ export default function MediaCard({ item, onClick, isFavorite, onToggleFavorite 
                   <Play className="h-8 w-8 text-accent" />
                 </div>
               </div>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent z-5"></div>
               <Image
                 src={thumbnailUrl || "/placeholder.svg"}
                 alt={item.title || "Miniatura de video"}
@@ -112,8 +150,6 @@ export default function MediaCard({ item, onClick, isFavorite, onToggleFavorite 
                 onContextMenu={(e) => e.preventDefault()}
                 draggable={false}
               />
-              {/* Video oculto para generar miniaturas */}
-              {item.url.includes("catbox.moe") && <video ref={videoRef} className="hidden" muted preload="metadata" />}
             </>
           ) : null}
         </div>

@@ -64,6 +64,20 @@ export default function ImagesPage() {
     })
   }
 
+  // Manejar la eliminación de un medio
+  const handleMediaDeleted = (id: string) => {
+    // Actualizar la lista local
+    setMediaItems((prev) => prev.filter((item) => item.id !== id))
+
+    // Actualizar localStorage
+    const savedMedia = localStorage.getItem("mediaItems")
+    if (savedMedia) {
+      const parsedMedia = JSON.parse(savedMedia) as MediaItem[]
+      const updatedMedia = parsedMedia.filter((item) => item.id !== id)
+      localStorage.setItem("mediaItems", JSON.stringify(updatedMedia))
+    }
+  }
+
   // Actualizar la función que maneja la navegación:
   const handleNavigate = (section: string) => {
     setActiveSection(section)
@@ -126,6 +140,7 @@ export default function ImagesPage() {
                 onToggleFavorite={toggleFavorite}
                 showTypeFilter={false}
                 defaultType="image"
+                onMediaDeleted={handleMediaDeleted}
               />
             </Suspense>
           </section>

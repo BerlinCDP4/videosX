@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useRouter } from "next/navigation"
 import { AlertCircle } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { useUser } from "@/contexts/user-context"
 
 // Nuevas categorías
 const mediaCategories = ["Amateur", "Famosas", "Monica", "Estudio"]
@@ -25,6 +26,7 @@ export default function UploadForm() {
   const [isUploading, setIsUploading] = useState(false)
   const [showAlert, setShowAlert] = useState(false)
   const router = useRouter()
+  const { userId } = useUser()
 
   // Reset form when type changes
   useEffect(() => {
@@ -55,7 +57,7 @@ export default function UploadForm() {
     setIsUploading(true)
 
     try {
-      const newMedia = await uploadMedia(url, type, title, category.toLowerCase())
+      const newMedia = await uploadMedia(url, type, title, category.toLowerCase(), userId)
 
       // Actualizar localStorage con el nuevo medio
       const savedMedia = localStorage.getItem("mediaItems")
@@ -197,8 +199,8 @@ export default function UploadForm() {
               </div>
 
               <div>
-                <p className="font-medium mb-2">Protección de contenido:</p>
-                <p>Todo el contenido subido estará protegido contra descargas y capturas de pantalla.</p>
+                <p className="font-medium mb-2">Propiedad del contenido:</p>
+                <p>Solo tú podrás eliminar el contenido que subas. Otros usuarios no podrán eliminar tus medios.</p>
               </div>
             </div>
           </div>

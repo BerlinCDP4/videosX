@@ -80,6 +80,11 @@ export default function Home() {
     })
   }
 
+  // Manejar la eliminación de un medio
+  const handleMediaDeleted = (id: string) => {
+    setMediaItems((prev) => prev.filter((item) => item.id !== id))
+  }
+
   // Actualizar la función que maneja la navegación:
   const handleNavigate = (section: string) => {
     setActiveSection(section)
@@ -149,6 +154,7 @@ export default function Home() {
                 isLoading={isLoading}
                 favorites={favorites}
                 onToggleFavorite={toggleFavorite}
+                onMediaDeleted={handleMediaDeleted}
               />
             </Suspense>
           </section>
