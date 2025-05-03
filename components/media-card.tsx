@@ -21,7 +21,7 @@ interface MediaCardProps {
 
 export default function MediaCard({ item, onClick, isFavorite, onToggleFavorite, onDelete }: MediaCardProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const [thumbnailUrl, setThumbnailUrl] = useState<string>(item.thumbnail || "/placeholder.svg?height=400&width=600")
+  const [thumbnailUrl, setThumbnailUrl] = useState<string>("/video-thumbnail.png")
   const { userId } = useUser()
   const isOwner = userId === item.userId
 
@@ -40,13 +40,12 @@ export default function MediaCard({ item, onClick, isFavorite, onToggleFavorite,
         if (videoId) {
           setThumbnailUrl(`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`)
         } else {
-          setThumbnailUrl("/placeholder.svg?height=400&width=600&text=Video")
+          setThumbnailUrl("/video-thumbnail.png")
         }
       }
       // Para videos de catbox.moe y otros servicios directos
-      else if (item.url.includes("catbox.moe") || item.url.endsWith(".mp4") || item.url.endsWith(".webm")) {
-        // Usar una miniatura personalizada para videos
-        setThumbnailUrl("/video-thumbnail.png?height=400&width=600")
+      else {
+        setThumbnailUrl("/video-thumbnail.png")
       }
     }
   }, [item])

@@ -34,7 +34,7 @@ export default function MediaViewer({ item, onClose, isFavorite, onToggleFavorit
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const { userId } = useUser()
   const isOwner = userId === item.userId
-  const [thumbnailUrl, setThumbnailUrl] = useState<string>(item.thumbnail || "/video-thumbnail.png")
+  const [thumbnailUrl, setThumbnailUrl] = useState<string>("/video-thumbnail.png")
 
   // Handle keyboard navigation for TV interfaces
   useEffect(() => {
@@ -94,7 +94,7 @@ export default function MediaViewer({ item, onClose, isFavorite, onToggleFavorit
         }
       }
       // Para videos de catbox.moe y otros servicios directos
-      else if (item.url.includes("catbox.moe") || item.url.endsWith(".mp4") || item.url.endsWith(".webm")) {
+      else {
         setThumbnailUrl("/video-thumbnail.png")
       }
     }

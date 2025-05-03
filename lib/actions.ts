@@ -75,19 +75,11 @@ export async function uploadMedia(
 
       if (videoId) {
         thumbnail = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
+      } else {
+        thumbnail = "/video-thumbnail.png"
       }
     }
-    // Para Vimeo
-    else if (url.includes("vimeo.com")) {
-      // En una implementación real, se haría una llamada a la API de Vimeo
-      thumbnail = "/video-thumbnail.png"
-    }
-    // Para catbox.moe y otros servicios de alojamiento de videos
-    else if (url.includes("catbox.moe") || url.endsWith(".mp4") || url.endsWith(".webm")) {
-      // Usar un thumbnail personalizado para videos
-      thumbnail = "/video-thumbnail.png"
-    }
-    // Para otros videos, usar un placeholder
+    // Para todos los demás videos
     else {
       thumbnail = "/video-thumbnail.png"
     }
