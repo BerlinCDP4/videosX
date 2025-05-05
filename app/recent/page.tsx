@@ -1,54 +1,42 @@
 "use client"
 
-import { Suspense, useState, useEffect } from "react"
-import Gallery from "@/components/gallery"
+import { useState } from "react"
 import { GalleryHeader } from "@/components/gallery-header"
 import { MainNavigation } from "@/components/main-navigation"
-import { getRecentMedia } from "@/lib/actions"
-import type { MediaItem } from "@/lib/types"
+import { Button } from "@/components/ui/button"
+import { Upload } from "lucide-react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 export default function RecentPage() {
   const [activeSection, setActiveSection] = useState<string>("recent")
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [favorites, setFavorites] = useState<string[]>([])
+  const router = useRouter()
 
-  useEffect(() => {
-    const fetchMedia = async () => {
-      try {
-        const data = await getRecentMedia(20) // Get 20 most recent items
-        setMediaItems(data)
-      } catch (error) {
-        console.error("Error al cargar los medios recientes:", error)
-      } finally {
-        setIsLoading(false)
-      }
+  // Función simplificada para manejar la navegación
+  const handleNavigate = (section: string) => {
+    setActiveSection(section)
+
+    // Mapa de rutas simplificado
+    const routes: Record<string, string> = {
+      home: "/",
+      images: "/images",
+      videos: "/videos",
+      upload: "/upload",
+      favorites: "/favorites",
+      recent: "/recent",
+      profile: "/profile",
     }
 
-    // Load favorites from localStorage
-    const savedFavorites = localStorage.getItem("favorites")
-    if (savedFavorites) {
-      setFavorites(JSON.parse(savedFavorites))
+    const path = routes[section]
+    if (path) {
+      router.push(path)
     }
-
-    fetchMedia()
-  }, [])
-
-  // Toggle favorite status
-  const toggleFavorite = (id: string) => {
-    setFavorites((prev) => {
-      const newFavorites = prev.includes(id) ? prev.filter((itemId) => itemId !== id) : [...prev, id]
-
-      // Save to localStorage
-      localStorage.setItem("favorites", JSON.stringify(newFavorites))
-      return newFavorites
-    })
   }
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-background">
       {/* Sidebar Navigation */}
-      <MainNavigation activeSection={activeSection} onNavigate={setActiveSection} />
+      <MainNavigation activeSection={activeSection} onNavigate={handleNavigate} />
 
       {/* Main Content */}
       <main className="flex-1 min-h-screen">
@@ -56,24 +44,14 @@ export default function RecentPage() {
           <GalleryHeader title="Añadidos Recientemente" subtitle="Los últimos medios agregados a tu colección" />
 
           <section>
-            <Suspense
-              fallback={
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {Array(8)
-                    .fill(0)
-                    .map((_, i) => (
-                      <div key={i} className="bg-muted rounded-lg aspect-video animate-pulse" />
-                    ))}
-                </div>
-              }
-            >
-              <Gallery
-                mediaItems={mediaItems}
-                isLoading={isLoading}
-                favorites={favorites}
-                onToggleFavorite={toggleFavorite}
-              />
-            </Suspense>
+            <div className="text-center py-12 bg-card rounded-lg border border-muted p-8">
+              <p className="text-gray-400 mb-4">No hay medios recientes. ¡Sube algunos para comenzar!</p>
+              <Button asChild className="bg-accent hover:bg-accent/90 text-white">
+                <Link href="/upload">
+                  <Upload className="mr-2 h-4 w-4" /> Subir Nuevo Medio
+                </Link>
+              </Button>
+            </div>
           </section>
         </div>
       </main>

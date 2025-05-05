@@ -1,123 +1,35 @@
 "use client"
 
-import { Suspense, useState, useEffect } from "react"
-import Gallery from "@/components/gallery"
+import { useState } from "react"
 import { GalleryHeader } from "@/components/gallery-header"
 import { MainNavigation } from "@/components/main-navigation"
-import { getMediaByType } from "@/lib/actions"
-import type { MediaItem } from "@/lib/types"
+import { Button } from "@/components/ui/button"
+import { Upload } from "lucide-react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 
 export default function VideosPage() {
   const [activeSection, setActiveSection] = useState<string>("videos")
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [favorites, setFavorites] = useState<string[]>([])
   const router = useRouter()
 
-  useEffect(() => {
-    const fetchMedia = async () => {
-      setIsLoading(true)
-      try {
-        // Intentar cargar desde localStorage primero
-        const savedMedia = localStorage.getItem("mediaItems")
-        if (savedMedia) {
-          try {
-            const parsedMedia = JSON.parse(savedMedia) as MediaItem[]
-            // Filtrar solo videos
-            setMediaItems(parsedMedia.filter((item) => item.type === "video"))
-          } catch (parseError) {
-            console.error("Error al parsear los datos guardados:", parseError)
-            // Si hay error al parsear, intentar cargar desde el servidor
-            const data = await getMediaByType("video")
-            setMediaItems(data)
-          }
-        } else {
-          // Si no hay datos en localStorage, cargar desde el servidor
-          const data = await getMediaByType("video")
-          setMediaItems(data)
-        }
-      } catch (error) {
-        console.error("Error al cargar los videos:", error)
-        // Establecer un array vacío en caso de error para evitar que la aplicación falle
-        setMediaItems([])
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    // Load favorites from localStorage
-    const savedFavorites = localStorage.getItem("favorites")
-    if (savedFavorites) {
-      setFavorites(JSON.parse(savedFavorites))
-    }
-
-    fetchMedia()
-  }, [])
-
-  // Toggle favorite status
-  const toggleFavorite = (id: string) => {
-    setFavorites((prev) => {
-      const newFavorites = prev.includes(id) ? prev.filter((itemId) => itemId !== id) : [...prev, id]
-
-      // Save to localStorage
-      localStorage.setItem("favorites", JSON.stringify(newFavorites))
-      return newFavorites
-    })
-  }
-
-  // Manejar la eliminación de un medio
-  const handleMediaDeleted = (id: string) => {
-    try {
-      // Actualizar la lista local
-      setMediaItems((prev) => prev.filter((item) => item.id !== id))
-
-      // Actualizar localStorage
-      const savedMedia = localStorage.getItem("mediaItems")
-      if (savedMedia) {
-        try {
-          const parsedMedia = JSON.parse(savedMedia) as MediaItem[]
-          const updatedMedia = parsedMedia.filter((item) => item.id !== id)
-          localStorage.setItem("mediaItems", JSON.stringify(updatedMedia))
-        } catch (error) {
-          console.error("Error al actualizar localStorage:", error)
-        }
-      }
-    } catch (error) {
-      console.error("Error al eliminar el medio:", error)
-    }
-  }
-
-  // Actualizar la función que maneja la navegación:
+  // Función simplificada para manejar la navegación
   const handleNavigate = (section: string) => {
     setActiveSection(section)
 
-    // Encontrar la categoría seleccionada
-    const findCategory = (categories: any[], id: string): any | undefined => {
-      for (const category of categories) {
-        if (category.id === id) return category
-        if (category.subcategories) {
-          const found = findCategory(category.subcategories, id)
-          if (found) return found
-        }
-      }
-      return undefined
+    // Mapa de rutas simplificado
+    const routes: Record<string, string> = {
+      home: "/",
+      images: "/images",
+      videos: "/videos",
+      upload: "/upload",
+      favorites: "/favorites",
+      recent: "/recent",
+      profile: "/profile",
     }
 
-    // Simular las categorías que están en MainNavigation
-    const categories = [
-      { id: "home", path: "/" },
-      { id: "images", path: "/images" },
-      { id: "videos", path: "/videos" },
-      { id: "upload", path: "/upload" },
-      { id: "favorites", path: "/favorites" },
-      { id: "recent", path: "/recent" },
-    ]
-
-    const selectedCategory = findCategory(categories, section)
-
-    if (selectedCategory?.path) {
-      router.push(selectedCategory.path)
+    const path = routes[section]
+    if (path) {
+      router.push(path)
     }
   }
 
@@ -132,27 +44,14 @@ export default function VideosPage() {
           <GalleryHeader title="Videos" subtitle="Explora tu colección de videos" />
 
           <section>
-            <Suspense
-              fallback={
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {Array(8)
-                    .fill(0)
-                    .map((_, i) => (
-                      <div key={i} className="bg-muted rounded-lg aspect-video animate-pulse" />
-                    ))}
-                </div>
-              }
-            >
-              <Gallery
-                mediaItems={mediaItems}
-                isLoading={isLoading}
-                favorites={favorites}
-                onToggleFavorite={toggleFavorite}
-                showTypeFilter={false}
-                defaultType="video"
-                onMediaDeleted={handleMediaDeleted}
-              />
-            </Suspense>
+            <div className="text-center py-12 bg-card rounded-lg border border-muted p-8">
+              <p className="text-gray-400 mb-4">No se encontraron videos. ¡Sube algunos para comenzar!</p>
+              <Button asChild className="bg-accent hover:bg-accent/90 text-white">
+                <Link href="/upload">
+                  <Upload className="mr-2 h-4 w-4" /> Subir Nuevo Video
+                </Link>
+              </Button>
+            </div>
           </section>
         </div>
       </main>

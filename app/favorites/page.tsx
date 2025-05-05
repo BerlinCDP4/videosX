@@ -1,60 +1,41 @@
 "use client"
 
-import { Suspense, useState, useEffect } from "react"
-import Gallery from "@/components/gallery"
+import { useState } from "react"
 import { GalleryHeader } from "@/components/gallery-header"
 import { MainNavigation } from "@/components/main-navigation"
-import { getFavorites } from "@/lib/actions"
-import type { MediaItem } from "@/lib/types"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 export default function FavoritesPage() {
   const [activeSection, setActiveSection] = useState<string>("favorites")
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [favorites, setFavorites] = useState<string[]>([])
+  const router = useRouter()
 
-  useEffect(() => {
-    const fetchMedia = async () => {
-      try {
-        // Load favorites from localStorage
-        const savedFavorites = localStorage.getItem("favorites")
-        const favoriteIds = savedFavorites ? JSON.parse(savedFavorites) : []
-        setFavorites(favoriteIds)
+  // Función simplificada para manejar la navegación
+  const handleNavigate = (section: string) => {
+    setActiveSection(section)
 
-        // Get favorite media items
-        const data = await getFavorites(favoriteIds)
-        setMediaItems(data)
-      } catch (error) {
-        console.error("Error al cargar los favoritos:", error)
-      } finally {
-        setIsLoading(false)
-      }
+    // Mapa de rutas simplificado
+    const routes: Record<string, string> = {
+      home: "/",
+      images: "/images",
+      videos: "/videos",
+      upload: "/upload",
+      favorites: "/favorites",
+      recent: "/recent",
+      profile: "/profile",
     }
 
-    fetchMedia()
-  }, [])
-
-  // Toggle favorite status
-  const toggleFavorite = (id: string) => {
-    setFavorites((prev) => {
-      const newFavorites = prev.includes(id) ? prev.filter((itemId) => itemId !== id) : [...prev, id]
-
-      // Save to localStorage
-      localStorage.setItem("favorites", JSON.stringify(newFavorites))
-
-      // Remove from display if unfavorited
-      if (!newFavorites.includes(id)) {
-        setMediaItems((prev) => prev.filter((item) => item.id !== id))
-      }
-
-      return newFavorites
-    })
+    const path = routes[section]
+    if (path) {
+      router.push(path)
+    }
   }
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-background">
       {/* Sidebar Navigation */}
-      <MainNavigation activeSection={activeSection} onNavigate={setActiveSection} />
+      <MainNavigation activeSection={activeSection} onNavigate={handleNavigate} />
 
       {/* Main Content */}
       <main className="flex-1 min-h-screen">
@@ -62,24 +43,14 @@ export default function FavoritesPage() {
           <GalleryHeader title="Favoritos" subtitle="Tu colección de medios favoritos" />
 
           <section>
-            <Suspense
-              fallback={
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {Array(8)
-                    .fill(0)
-                    .map((_, i) => (
-                      <div key={i} className="bg-muted rounded-lg aspect-video animate-pulse" />
-                    ))}
-                </div>
-              }
-            >
-              <Gallery
-                mediaItems={mediaItems}
-                isLoading={isLoading}
-                favorites={favorites}
-                onToggleFavorite={toggleFavorite}
-              />
-            </Suspense>
+            <div className="text-center py-12 bg-card rounded-lg border border-muted p-8">
+              <p className="text-gray-400 mb-4">
+                No tienes favoritos. Marca algunos medios como favoritos para verlos aquí.
+              </p>
+              <Button asChild className="bg-accent hover:bg-accent/90 text-white">
+                <Link href="/">Explorar Galería</Link>
+              </Button>
+            </div>
           </section>
         </div>
       </main>
