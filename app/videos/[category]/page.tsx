@@ -31,17 +31,26 @@ export default function VideoCategoryPage() {
 
   useEffect(() => {
     const fetchMedia = async () => {
+      setIsLoading(true)
       try {
         // Intentar cargar desde localStorage primero
         const savedMedia = localStorage.getItem("mediaItems")
         if (savedMedia) {
-          const parsedMedia = JSON.parse(savedMedia) as MediaItem[]
-          // Filtrar por tipo video y categoría
-          setMediaItems(
-            parsedMedia.filter(
-              (item) => item.type === "video" && item.category.toLowerCase() === category.toLowerCase(),
-            ),
-          )
+          try {
+            const parsedMedia = JSON.parse(savedMedia) as MediaItem[]
+            // Filtrar por tipo video y categoría
+            setMediaItems(
+              parsedMedia.filter(
+                (item) => item.type === "video" && item.category.toLowerCase() === category.toLowerCase(),
+              ),
+            )
+          } catch (parseError) {
+            console.error("Error al parsear los datos guardados:", parseError)
+            // Si hay error al parsear, intentar cargar desde el servidor
+            const allVideos = await getMediaByType("video")
+            const filteredVideos = allVideos.filter((item) => item.category.toLowerCase() === category.toLowerCase())
+            setMediaItems(filteredVideos)
+          }
         } else {
           // Si no hay datos en localStorage, cargar desde el servidor
           const allVideos = await getMediaByType("video")
@@ -50,15 +59,8 @@ export default function VideoCategoryPage() {
         }
       } catch (error) {
         console.error(`Error al cargar los videos de la categoría ${category}:`, error)
-
-        // Intentar cargar desde el servidor como respaldo
-        try {
-          const allVideos = await getMediaByType("video")
-          const filteredVideos = allVideos.filter((item) => item.category.toLowerCase() === category.toLowerCase())
-          setMediaItems(filteredVideos)
-        } catch (e) {
-          console.error(`Error al cargar los videos de la categoría ${category} desde el servidor:`, e)
-        }
+        // Establecer un array vacío en caso de error para evitar que la aplicación falle
+        setMediaItems([])
       } finally {
         setIsLoading(false)
       }

@@ -55,6 +55,24 @@ export async function getRecentMedia(limit = 10): Promise<MediaItem[]> {
   return media.slice(0, limit)
 }
 
+// Función para sincronizar la base de datos con localStorage
+export async function syncMediaDatabase(items: MediaItem[]): Promise<void> {
+  try {
+    if (!items || !Array.isArray(items)) {
+      console.error("Los datos proporcionados no son un array válido")
+      mediaDatabase = []
+    } else {
+      mediaDatabase = items
+    }
+    revalidatePath("/")
+  } catch (error) {
+    console.error("Error al sincronizar la base de datos:", error)
+    // Si hay un error, inicializar con un array vacío
+    mediaDatabase = []
+  }
+}
+
+// Mejorar la función uploadMedia para manejar mejor los errores
 export async function uploadMedia(
   url: string,
   type: string,
@@ -92,21 +110,26 @@ export async function uploadMedia(
       if (url.includes("youtube.com") || url.includes("youtu.be")) {
         let videoId = null
 
-        if (url.includes("youtu.be")) {
-          videoId = url.split("/").pop()?.split("?")[0]
-        } else if (url.includes("v=")) {
-          try {
-            videoId = new URL(url).searchParams.get("v")
-          } catch (e) {
-            // Si hay un error al parsear la URL, intentar extraer el ID manualmente
-            const match = url.match(/[?&]v=([^&]+)/)
-            if (match) videoId = match[1]
+        try {
+          if (url.includes("youtu.be")) {
+            videoId = url.split("/").pop()?.split("?")[0]
+          } else if (url.includes("v=")) {
+            try {
+              videoId = new URL(url).searchParams.get("v")
+            } catch (e) {
+              // Si hay un error al parsear la URL, intentar extraer el ID manualmente
+              const match = url.match(/[?&]v=([^&]+)/)
+              if (match) videoId = match[1]
+            }
           }
-        }
 
-        if (videoId) {
-          thumbnail = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
-        } else {
+          if (videoId) {
+            thumbnail = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
+          } else {
+            thumbnail = "/video-thumbnail.png"
+          }
+        } catch (error) {
+          console.error("Error al procesar URL de YouTube:", error)
           thumbnail = "/video-thumbnail.png"
         }
       }
@@ -133,12 +156,16 @@ export async function uploadMedia(
   mediaDatabase = [newMedia, ...mediaDatabase]
 
   // Revalidar la ruta para actualizar la UI
-  revalidatePath("/")
-  revalidatePath("/upload")
-  revalidatePath("/images")
-  revalidatePath("/videos")
-  revalidatePath("/favorites")
-  revalidatePath("/recent")
+  try {
+    revalidatePath("/")
+    revalidatePath("/upload")
+    revalidatePath("/images")
+    revalidatePath("/videos")
+    revalidatePath("/favorites")
+    revalidatePath("/recent")
+  } catch (error) {
+    console.error("Error al revalidar rutas:", error)
+  }
 
   return newMedia
 }
@@ -169,18 +196,6 @@ export async function deleteMedia(mediaId: string, userId: string): Promise<bool
   revalidatePath("/recent")
 
   return true
-}
-
-// Función para sincronizar la base de datos con localStorage
-export async function syncMediaDatabase(items: MediaItem[]): Promise<void> {
-  try {
-    mediaDatabase = items || []
-    revalidatePath("/")
-  } catch (error) {
-    console.error("Error al sincronizar la base de datos:", error)
-    // Si hay un error, inicializar con un array vacío
-    mediaDatabase = []
-  }
 }
 
 // Funciones para la autenticación y gestión de usuarios

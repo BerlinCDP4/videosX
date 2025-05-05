@@ -18,25 +18,36 @@ export default function Home() {
   const [favorites, setFavorites] = useState<string[]>([])
   const router = useRouter()
 
-  // Cargar datos guardados al iniciar
+  // Cargar datos guardados al iniciar con mejor manejo de errores
   useEffect(() => {
     const loadSavedData = async () => {
       try {
         // Intentar cargar medios desde localStorage
         const savedMedia = localStorage.getItem("mediaItems")
         if (savedMedia) {
-          const parsedMedia = JSON.parse(savedMedia) as MediaItem[]
-          setMediaItems(parsedMedia)
+          try {
+            const parsedMedia = JSON.parse(savedMedia) as MediaItem[]
+            setMediaItems(parsedMedia)
 
-          // Sincronizar con la base de datos del servidor
-          await syncMediaDatabase(parsedMedia)
+            // Sincronizar con la base de datos del servidor
+            await syncMediaDatabase(parsedMedia)
+          } catch (parseError) {
+            console.error("Error al parsear los datos guardados:", parseError)
+            // Si hay error al parsear, cargar desde el servidor
+            const data = await getMedia()
+            setMediaItems(data)
+          }
         } else {
           // Si no hay datos guardados, cargar desde el servidor
           const data = await getMedia()
           setMediaItems(data)
 
           // Guardar en localStorage
-          localStorage.setItem("mediaItems", JSON.stringify(data))
+          try {
+            localStorage.setItem("mediaItems", JSON.stringify(data))
+          } catch (storageError) {
+            console.error("Error al guardar en localStorage:", storageError)
+          }
         }
       } catch (error) {
         console.error("Error al cargar los medios:", error)
@@ -47,16 +58,23 @@ export default function Home() {
           setMediaItems(data)
         } catch (e) {
           console.error("Error al cargar los medios desde el servidor:", e)
+          // Establecer un array vacío en caso de error para evitar que la aplicación falle
+          setMediaItems([])
         }
       } finally {
         setIsLoading(false)
       }
     }
 
-    // Load favorites from localStorage
-    const savedFavorites = localStorage.getItem("favorites")
-    if (savedFavorites) {
-      setFavorites(JSON.parse(savedFavorites))
+    // Load favorites from localStorage with error handling
+    try {
+      const savedFavorites = localStorage.getItem("favorites")
+      if (savedFavorites) {
+        setFavorites(JSON.parse(savedFavorites))
+      }
+    } catch (error) {
+      console.error("Error al cargar favoritos:", error)
+      setFavorites([])
     }
 
     loadSavedData()

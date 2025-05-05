@@ -49,8 +49,10 @@ export default function UploadForm() {
     }
   }, [url, type])
 
-  // Validar URL
+  // Validar URL con mejor manejo de errores
   const isValidUrl = (urlString: string): boolean => {
+    if (!urlString || urlString.trim() === "") return false
+
     try {
       new URL(urlString)
       return true
@@ -59,7 +61,7 @@ export default function UploadForm() {
     }
   }
 
-  // Validar URL de video
+  // Validar URL de video con mejor detección
   const isValidVideoUrl = (urlString: string): boolean => {
     if (!isValidUrl(urlString)) return false
 
@@ -69,23 +71,26 @@ export default function UploadForm() {
     }
 
     // Verificar si es una URL directa de video
-    const videoExtensions = [".mp4", ".webm", ".ogg", ".mov"]
-    return videoExtensions.some((ext) => urlString.toLowerCase().endsWith(ext))
+    const videoExtensions = [".mp4", ".webm", ".ogg", ".mov", ".avi", ".mkv"]
+    const lowercaseUrl = urlString.toLowerCase()
+    return videoExtensions.some((ext) => lowercaseUrl.endsWith(ext))
   }
 
-  // Validar URL de imagen
+  // Validar URL de imagen con mejor detección
   const isValidImageUrl = (urlString: string): boolean => {
     if (!isValidUrl(urlString)) return false
 
-    const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"]
-    return imageExtensions.some((ext) => urlString.toLowerCase().endsWith(ext))
+    const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp"]
+    const lowercaseUrl = urlString.toLowerCase()
+    return imageExtensions.some((ext) => lowercaseUrl.endsWith(ext))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setUrlError(null)
 
-    if (!url) {
+    // Validaciones básicas
+    if (!url || url.trim() === "") {
       toast({
         title: "Error",
         description: "Por favor, introduce una URL",
@@ -95,14 +100,18 @@ export default function UploadForm() {
     }
 
     // Validar URL según el tipo
-    if (type === "video" && !isValidVideoUrl(url)) {
-      setUrlError("La URL no parece ser un video válido. Debe ser un enlace de YouTube o terminar en .mp4, .webm, etc.")
-      return
-    }
-
-    if (type === "image" && !isValidImageUrl(url)) {
-      setUrlError("La URL no parece ser una imagen válida. Debe terminar en .jpg, .png, .webp, etc.")
-      return
+    if (type === "video") {
+      if (!isValidVideoUrl(url)) {
+        setUrlError(
+          "La URL no parece ser un video válido. Debe ser un enlace de YouTube o terminar en .mp4, .webm, etc.",
+        )
+        return
+      }
+    } else if (type === "image") {
+      if (!isValidImageUrl(url)) {
+        setUrlError("La URL no parece ser una imagen válida. Debe terminar en .jpg, .png, .webp, etc.")
+        return
+      }
     }
 
     if (!category) {
@@ -147,9 +156,14 @@ export default function UploadForm() {
       )
 
       // Actualizar localStorage con el nuevo medio
-      const savedMedia = localStorage.getItem("mediaItems")
-      const mediaItems = savedMedia ? JSON.parse(savedMedia) : []
-      localStorage.setItem("mediaItems", JSON.stringify([newMedia, ...mediaItems]))
+      try {
+        const savedMedia = localStorage.getItem("mediaItems")
+        const mediaItems = savedMedia ? JSON.parse(savedMedia) : []
+        localStorage.setItem("mediaItems", JSON.stringify([newMedia, ...mediaItems]))
+      } catch (storageError) {
+        console.error("Error al actualizar localStorage:", storageError)
+        // Continuar aunque falle el localStorage
+      }
 
       toast({
         title: "Éxito",
@@ -175,7 +189,7 @@ export default function UploadForm() {
       console.error("Error al subir medio:", error)
       toast({
         title: "Error",
-        description: "Error al subir el medio. Por favor, intenta de nuevo.",
+        description: "Error al subir el medio. Por favor, intenta de nuevo con otra URL.",
         variant: "destructive",
       })
     } finally {

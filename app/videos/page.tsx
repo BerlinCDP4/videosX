@@ -17,13 +17,21 @@ export default function VideosPage() {
 
   useEffect(() => {
     const fetchMedia = async () => {
+      setIsLoading(true)
       try {
         // Intentar cargar desde localStorage primero
         const savedMedia = localStorage.getItem("mediaItems")
         if (savedMedia) {
-          const parsedMedia = JSON.parse(savedMedia) as MediaItem[]
-          // Filtrar solo videos
-          setMediaItems(parsedMedia.filter((item) => item.type === "video"))
+          try {
+            const parsedMedia = JSON.parse(savedMedia) as MediaItem[]
+            // Filtrar solo videos
+            setMediaItems(parsedMedia.filter((item) => item.type === "video"))
+          } catch (parseError) {
+            console.error("Error al parsear los datos guardados:", parseError)
+            // Si hay error al parsear, intentar cargar desde el servidor
+            const data = await getMediaByType("video")
+            setMediaItems(data)
+          }
         } else {
           // Si no hay datos en localStorage, cargar desde el servidor
           const data = await getMediaByType("video")
@@ -31,14 +39,8 @@ export default function VideosPage() {
         }
       } catch (error) {
         console.error("Error al cargar los videos:", error)
-
-        // Intentar cargar desde el servidor como respaldo
-        try {
-          const data = await getMediaByType("video")
-          setMediaItems(data)
-        } catch (e) {
-          console.error("Error al cargar los videos desde el servidor:", e)
-        }
+        // Establecer un array vacío en caso de error para evitar que la aplicación falle
+        setMediaItems([])
       } finally {
         setIsLoading(false)
       }
@@ -66,15 +68,23 @@ export default function VideosPage() {
 
   // Manejar la eliminación de un medio
   const handleMediaDeleted = (id: string) => {
-    // Actualizar la lista local
-    setMediaItems((prev) => prev.filter((item) => item.id !== id))
+    try {
+      // Actualizar la lista local
+      setMediaItems((prev) => prev.filter((item) => item.id !== id))
 
-    // Actualizar localStorage
-    const savedMedia = localStorage.getItem("mediaItems")
-    if (savedMedia) {
-      const parsedMedia = JSON.parse(savedMedia) as MediaItem[]
-      const updatedMedia = parsedMedia.filter((item) => item.id !== id)
-      localStorage.setItem("mediaItems", JSON.stringify(updatedMedia))
+      // Actualizar localStorage
+      const savedMedia = localStorage.getItem("mediaItems")
+      if (savedMedia) {
+        try {
+          const parsedMedia = JSON.parse(savedMedia) as MediaItem[]
+          const updatedMedia = parsedMedia.filter((item) => item.id !== id)
+          localStorage.setItem("mediaItems", JSON.stringify(updatedMedia))
+        } catch (error) {
+          console.error("Error al actualizar localStorage:", error)
+        }
+      }
+    } catch (error) {
+      console.error("Error al eliminar el medio:", error)
     }
   }
 

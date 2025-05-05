@@ -54,30 +54,41 @@ export default function ThumbnailGenerator({
         if (autoGenerate) {
           // Pequeño retraso para asegurar que el frame esté cargado
           setTimeout(() => {
-            captureThumbnail()
-          }, 500)
+            try {
+              captureThumbnail()
+            } catch (e) {
+              console.error("Error en auto-generación de miniatura:", e)
+              setError("No se pudo generar la miniatura automáticamente. Intenta capturarla manualmente.")
+            }
+          }, 1000)
         }
       }
     }
 
     // Handle video errors
-    const handleError = () => {
-      setError("Error al cargar el video. Verifica la URL e intenta de nuevo.")
+    const handleError = (e: Event) => {
+      console.error("Error al cargar el video:", e)
+      setError("Error al cargar el video. Verifica que la URL sea válida y accesible.")
       setIsLoading(false)
     }
 
     video.addEventListener("loadedmetadata", handleMetadataLoaded)
     video.addEventListener("error", handleError)
 
-    // Load the video
-    video.src = videoUrl
-    video.load()
+    // Load the video with error handling
+    try {
+      video.src = videoUrl
+      video.load()
+    } catch (e) {
+      console.error("Error al establecer la URL del video:", e)
+      setError("Error al cargar el video. La URL podría ser inválida.")
+    }
 
     return () => {
       video.removeEventListener("loadedmetadata", handleMetadataLoaded)
       video.removeEventListener("error", handleError)
     }
-  }, [videoUrl, autoGenerate])
+  }, [videoUrl, autoGenerate, onThumbnailGenerated])
 
   // Handle time update
   const handleTimeUpdate = () => {
@@ -95,21 +106,27 @@ export default function ThumbnailGenerator({
     }
   }
 
-  // Capture thumbnail
+  // Capture thumbnail con mejor manejo de errores
   const captureThumbnail = () => {
-    if (!videoRef.current || !canvasRef.current) return
+    if (!videoRef.current || !canvasRef.current) {
+      setError("No se pudo acceder al video o al canvas")
+      return
+    }
 
     const video = videoRef.current
     const canvas = canvasRef.current
     const context = canvas.getContext("2d")
 
-    if (!context) return
-
-    // Set canvas dimensions to match video
-    canvas.width = video.videoWidth || 640
-    canvas.height = video.videoHeight || 360
+    if (!context) {
+      setError("No se pudo obtener el contexto del canvas")
+      return
+    }
 
     try {
+      // Set canvas dimensions to match video
+      canvas.width = video.videoWidth || 640
+      canvas.height = video.videoHeight || 360
+
       // Draw current video frame to canvas
       context.drawImage(video, 0, 0, canvas.width, canvas.height)
 
@@ -119,7 +136,7 @@ export default function ThumbnailGenerator({
       onThumbnailGenerated(dataUrl)
     } catch (err) {
       console.error("Error al generar miniatura:", err)
-      setError("Error al generar la miniatura. Intenta de nuevo.")
+      setError("Error al generar la miniatura. Intenta de nuevo o usa otra URL de video.")
     }
   }
 
