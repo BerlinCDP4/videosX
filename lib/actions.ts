@@ -95,7 +95,13 @@ export async function uploadMedia(
         if (url.includes("youtu.be")) {
           videoId = url.split("/").pop()?.split("?")[0]
         } else if (url.includes("v=")) {
-          videoId = new URL(url).searchParams.get("v")
+          try {
+            videoId = new URL(url).searchParams.get("v")
+          } catch (e) {
+            // Si hay un error al parsear la URL, intentar extraer el ID manualmente
+            const match = url.match(/[?&]v=([^&]+)/)
+            if (match) videoId = match[1]
+          }
         }
 
         if (videoId) {
@@ -167,8 +173,14 @@ export async function deleteMedia(mediaId: string, userId: string): Promise<bool
 
 // Función para sincronizar la base de datos con localStorage
 export async function syncMediaDatabase(items: MediaItem[]): Promise<void> {
-  mediaDatabase = items
-  revalidatePath("/")
+  try {
+    mediaDatabase = items || []
+    revalidatePath("/")
+  } catch (error) {
+    console.error("Error al sincronizar la base de datos:", error)
+    // Si hay un error, inicializar con un array vacío
+    mediaDatabase = []
+  }
 }
 
 // Funciones para la autenticación y gestión de usuarios

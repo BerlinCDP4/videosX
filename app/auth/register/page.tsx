@@ -11,25 +11,33 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
 import Link from "next/link"
-import { useUser } from "@/contexts/user-context"
-import { signIn } from "next-auth/react"
+import { useAuth } from "@/contexts/auth-context"
 
 export default function RegisterPage() {
   const [name, setName] = useState("")
-  const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
-  const { register } = useUser()
+  const { register } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
 
     // Validaciones básicas
+    if (!name.trim()) {
+      setError("El nombre es obligatorio")
+      return
+    }
+
+    if (!email.trim()) {
+      setError("El email es obligatorio")
+      return
+    }
+
     if (password !== confirmPassword) {
       setError("Las contraseñas no coinciden")
       return
@@ -43,25 +51,19 @@ export default function RegisterPage() {
     setIsLoading(true)
 
     try {
-      const result = await register({
+      const success = await register({
         name,
-        username,
         email,
         password,
       })
 
-      if (result.success) {
-        // Iniciar sesión automáticamente después del registro
-        await signIn("credentials", {
-          redirect: false,
-          email,
-          password,
-        })
+      if (success) {
         router.push("/")
       } else {
-        setError(result.error || "Error al registrar usuario")
+        setError("El email ya está registrado")
       }
     } catch (err) {
+      console.error("Error al registrar:", err)
       setError("Error al registrar usuario")
     } finally {
       setIsLoading(false)
@@ -93,19 +95,6 @@ export default function RegisterPage() {
                   placeholder="Juan Pérez"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  required
-                  className="bg-muted border-muted"
-                  disabled={isLoading}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="username">Nombre de usuario</Label>
-                <Input
-                  id="username"
-                  type="text"
-                  placeholder="juanperez"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
                   required
                   className="bg-muted border-muted"
                   disabled={isLoading}

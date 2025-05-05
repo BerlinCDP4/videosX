@@ -10,9 +10,14 @@ import { AlertCircle, Camera } from "lucide-react"
 interface ThumbnailGeneratorProps {
   videoUrl: string
   onThumbnailGenerated: (thumbnailUrl: string) => void
+  autoGenerate?: boolean
 }
 
-export default function ThumbnailGenerator({ videoUrl, onThumbnailGenerated }: ThumbnailGeneratorProps) {
+export default function ThumbnailGenerator({
+  videoUrl,
+  onThumbnailGenerated,
+  autoGenerate = true,
+}: ThumbnailGeneratorProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [currentTime, setCurrentTime] = useState(0)
@@ -20,6 +25,7 @@ export default function ThumbnailGenerator({ videoUrl, onThumbnailGenerated }: T
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [videoLoaded, setVideoLoaded] = useState(false)
 
   useEffect(() => {
     if (!videoUrl) return
@@ -32,13 +38,25 @@ export default function ThumbnailGenerator({ videoUrl, onThumbnailGenerated }: T
     setDuration(0)
     setThumbnailUrl(null)
     setError(null)
+    setVideoLoaded(false)
 
     // Handle video metadata loaded
     const handleMetadataLoaded = () => {
       if (video.duration && !isNaN(video.duration)) {
         setDuration(video.duration)
-        // Set initial time to 0
-        video.currentTime = 0
+        // Set initial time to a quarter of the duration for better thumbnails
+        const initialTime = Math.min(video.duration / 4, 5)
+        video.currentTime = initialTime
+        setCurrentTime(initialTime)
+        setVideoLoaded(true)
+
+        // Auto-generate thumbnail if enabled
+        if (autoGenerate) {
+          // Pequeño retraso para asegurar que el frame esté cargado
+          setTimeout(() => {
+            captureThumbnail()
+          }, 500)
+        }
       }
     }
 
@@ -59,7 +77,7 @@ export default function ThumbnailGenerator({ videoUrl, onThumbnailGenerated }: T
       video.removeEventListener("loadedmetadata", handleMetadataLoaded)
       video.removeEventListener("error", handleError)
     }
-  }, [videoUrl])
+  }, [videoUrl, autoGenerate])
 
   // Handle time update
   const handleTimeUpdate = () => {
@@ -88,18 +106,19 @@ export default function ThumbnailGenerator({ videoUrl, onThumbnailGenerated }: T
     if (!context) return
 
     // Set canvas dimensions to match video
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
+    canvas.width = video.videoWidth || 640
+    canvas.height = video.videoHeight || 360
 
-    // Draw current video frame to canvas
-    context.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-    // Convert canvas to data URL
     try {
+      // Draw current video frame to canvas
+      context.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+      // Convert canvas to data URL
       const dataUrl = canvas.toDataURL("image/jpeg", 0.8)
       setThumbnailUrl(dataUrl)
       onThumbnailGenerated(dataUrl)
     } catch (err) {
+      console.error("Error al generar miniatura:", err)
       setError("Error al generar la miniatura. Intenta de nuevo.")
     }
   }
@@ -198,7 +217,7 @@ export default function ThumbnailGenerator({ videoUrl, onThumbnailGenerated }: T
           disabled={!duration}
         >
           <Camera className="mr-2 h-4 w-4" />
-          Capturar Miniatura
+          {thumbnailUrl ? "Capturar Nueva Miniatura" : "Capturar Miniatura"}
         </Button>
       </CardFooter>
 

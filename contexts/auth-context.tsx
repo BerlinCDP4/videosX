@@ -17,6 +17,7 @@ interface AuthContextType {
   isLoading: boolean
   login: (email: string, password: string) => Promise<boolean>
   logout: () => void
+  register: (userData: { name: string; email: string; password: string }) => Promise<boolean>
 }
 
 // Usuario de prueba
@@ -34,6 +35,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [users, setUsers] = useState<Array<typeof TEST_USER>>([TEST_USER])
 
   // Verificar si hay una sesión guardada al cargar
   useEffect(() => {
@@ -46,6 +48,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem("auth_user")
       }
     }
+
+    // Cargar usuarios guardados
+    const storedUsers = localStorage.getItem("auth_users")
+    if (storedUsers) {
+      try {
+        const parsedUsers = JSON.parse(storedUsers)
+        setUsers([TEST_USER, ...parsedUsers.filter((u: any) => u.email !== TEST_USER.email)])
+      } catch (e) {
+        console.error("Error parsing stored users:", e)
+      }
+    }
+
     setIsLoading(false)
   }, [])
 
@@ -55,17 +69,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await new Promise((resolve) => setTimeout(resolve, 500))
 
     // Verificar credenciales
-    if (email === TEST_USER.email && password === TEST_USER.password) {
+    const foundUser = users.find((u) => u.email === email && u.password === password)
+
+    if (foundUser) {
       const userData = {
-        id: TEST_USER.id,
-        name: TEST_USER.name,
-        email: TEST_USER.email,
+        id: foundUser.id,
+        name: foundUser.name,
+        email: foundUser.email,
       }
       setUser(userData)
       localStorage.setItem("auth_user", JSON.stringify(userData))
       return true
     }
     return false
+  }
+
+  // Función de registro
+  const register = async (userData: { name: string; email: string; password: string }): Promise<boolean> => {
+    // Simular una petición de API
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    // Verificar si el email ya está registrado
+    if (users.some((u) => u.email === userData.email)) {
+      return false
+    }
+
+    // Crear nuevo usuario
+    const newUser = {
+      id: Date.now().toString(),
+      name: userData.name,
+      email: userData.email,
+      password: userData.password,
+    }
+
+    // Actualizar lista de usuarios
+    const updatedUsers = [...users, newUser]
+    setUsers(updatedUsers)
+
+    // Guardar en localStorage
+    localStorage.setItem("auth_users", JSON.stringify(updatedUsers.filter((u) => u.email !== TEST_USER.email)))
+
+    // Iniciar sesión automáticamente
+    const userInfo = {
+      id: newUser.id,
+      name: newUser.name,
+      email: newUser.email,
+    }
+    setUser(userInfo)
+    localStorage.setItem("auth_user", JSON.stringify(userInfo))
+
+    return true
   }
 
   // Función de cierre de sesión
@@ -82,6 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         login,
         logout,
+        register,
       }}
     >
       {children}

@@ -28,6 +28,7 @@ export default function UploadForm() {
   const [showAlert, setShowAlert] = useState(false)
   const [customThumbnail, setCustomThumbnail] = useState<string | null>(null)
   const [showThumbnailGenerator, setShowThumbnailGenerator] = useState(false)
+  const [urlError, setUrlError] = useState<string | null>(null)
   const router = useRouter()
   const { user } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
@@ -37,10 +38,52 @@ export default function UploadForm() {
     setCategory("")
     setCustomThumbnail(null)
     setShowThumbnailGenerator(false)
+    setUrlError(null)
   }, [type])
+
+  // Mostrar generador de miniaturas automáticamente cuando se ingresa una URL de video válida
+  useEffect(() => {
+    if (type === "video" && isValidUrl(url)) {
+      setShowThumbnailGenerator(true)
+      setUrlError(null)
+    }
+  }, [url, type])
+
+  // Validar URL
+  const isValidUrl = (urlString: string): boolean => {
+    try {
+      new URL(urlString)
+      return true
+    } catch (e) {
+      return false
+    }
+  }
+
+  // Validar URL de video
+  const isValidVideoUrl = (urlString: string): boolean => {
+    if (!isValidUrl(urlString)) return false
+
+    // Verificar si es una URL de YouTube
+    if (urlString.includes("youtube.com") || urlString.includes("youtu.be")) {
+      return true
+    }
+
+    // Verificar si es una URL directa de video
+    const videoExtensions = [".mp4", ".webm", ".ogg", ".mov"]
+    return videoExtensions.some((ext) => urlString.toLowerCase().endsWith(ext))
+  }
+
+  // Validar URL de imagen
+  const isValidImageUrl = (urlString: string): boolean => {
+    if (!isValidUrl(urlString)) return false
+
+    const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"]
+    return imageExtensions.some((ext) => urlString.toLowerCase().endsWith(ext))
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setUrlError(null)
 
     if (!url) {
       toast({
@@ -48,6 +91,17 @@ export default function UploadForm() {
         description: "Por favor, introduce una URL",
         variant: "destructive",
       })
+      return
+    }
+
+    // Validar URL según el tipo
+    if (type === "video" && !isValidVideoUrl(url)) {
+      setUrlError("La URL no parece ser un video válido. Debe ser un enlace de YouTube o terminar en .mp4, .webm, etc.")
+      return
+    }
+
+    if (type === "image" && !isValidImageUrl(url)) {
+      setUrlError("La URL no parece ser una imagen válida. Debe terminar en .jpg, .png, .webp, etc.")
       return
     }
 
@@ -86,7 +140,7 @@ export default function UploadForm() {
       const newMedia = await uploadMedia(
         url,
         type,
-        title,
+        title || "Sin título",
         category.toLowerCase(),
         user.id,
         customThumbnail || undefined,
@@ -118,9 +172,10 @@ export default function UploadForm() {
         }
       }, 2000)
     } catch (error) {
+      console.error("Error al subir medio:", error)
       toast({
         title: "Error",
-        description: "Error al subir el medio",
+        description: "Error al subir el medio. Por favor, intenta de nuevo.",
         variant: "destructive",
       })
     } finally {
@@ -176,9 +231,13 @@ export default function UploadForm() {
                 id="url"
                 placeholder="https://ejemplo.com/tu-medio.jpg"
                 value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                className="w-full bg-muted border-muted"
+                onChange={(e) => {
+                  setUrl(e.target.value)
+                  setUrlError(null)
+                }}
+                className={`w-full bg-muted border-muted ${urlError ? "border-red-500" : ""}`}
               />
+              {urlError && <p className="text-red-500 text-sm mt-1">{urlError}</p>}
             </div>
           </div>
 
@@ -238,7 +297,11 @@ export default function UploadForm() {
               </div>
 
               {showThumbnailGenerator ? (
-                <ThumbnailGenerator videoUrl={url} onThumbnailGenerated={handleThumbnailGenerated} />
+                <ThumbnailGenerator
+                  videoUrl={url}
+                  onThumbnailGenerated={handleThumbnailGenerated}
+                  autoGenerate={true}
+                />
               ) : customThumbnail ? (
                 <div className="relative aspect-video w-full max-w-md mx-auto border border-muted rounded-md overflow-hidden">
                   <img
