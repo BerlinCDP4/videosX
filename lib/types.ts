@@ -37,3 +37,14 @@ export interface RegisterData {
   name: string
   username: string
 }
+
+// Nuevo tipo para comentarios
+export interface Comment {
+  id: string
+  mediaId: string
+  userId: string
+  userName: string
+  userAvatar?: string
+  text: string
+  createdAt: string
+}

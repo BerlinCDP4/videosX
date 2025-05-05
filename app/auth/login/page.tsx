@@ -12,10 +12,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/contexts/auth-context"
+import { Checkbox } from "@/components/ui/checkbox"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
@@ -29,7 +31,7 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
-      const success = await login(email, password)
+      const success = await login(email, password, rememberMe)
 
       if (success) {
         router.push(callbackUrl)
@@ -91,10 +93,19 @@ export default function LoginPage() {
                   disabled={isLoading}
                 />
               </div>
-              <Alert className="bg-blue-500/20 border-blue-500 text-white">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>Usuario de prueba: usuario@ejemplo.com / Contraseña: 123456</AlertDescription>
-              </Alert>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="remember"
+                  checked={rememberMe}
+                  onCheckedChange={(checked) => setRememberMe(checked === true)}
+                  className="data-[state=checked]:bg-accent data-[state=checked]:border-accent"
+                />
+                <Label htmlFor="remember" className="text-sm font-normal">
+                  Recordar mi sesión
+                </Label>
+              </div>
+
               <Button type="submit" className="w-full bg-accent hover:bg-accent/90" disabled={isLoading}>
                 {isLoading ? "Iniciando sesión..." : "Iniciar Sesión"}
               </Button>

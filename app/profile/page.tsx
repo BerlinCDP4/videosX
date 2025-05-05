@@ -11,11 +11,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { AlertCircle, Upload, LogOut } from "lucide-react"
-import { useUser } from "@/contexts/user-context"
+import { useAuth } from "@/contexts/auth-context"
 import { MainNavigation } from "@/components/main-navigation"
 
 export default function ProfilePage() {
-  const { user, isAuthenticated, updateProfile, logout } = useUser()
+  const { user, isAuthenticated, updateProfile, logout } = useAuth()
   const [name, setName] = useState("")
   const [username, setUsername] = useState("")
   const [profilePicture, setProfilePicture] = useState<string | undefined>("")
@@ -26,18 +26,13 @@ export default function ProfilePage() {
   const router = useRouter()
 
   useEffect(() => {
-    // Redirigir si no está autenticado
-    if (!isAuthenticated) {
-      router.push("/auth/login")
-    }
-
     // Cargar datos del usuario
     if (user) {
       setName(user.name || "")
-      setUsername(user.username || "")
-      setProfilePicture(user.profilePicture || "")
+      setUsername(user.email || "") // Usar email como username por defecto
+      setProfilePicture(user.image || "")
     }
-  }, [user, isAuthenticated, router])
+  }, [user])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -46,27 +41,20 @@ export default function ProfilePage() {
     setIsLoading(true)
 
     try {
-      const result = await updateProfile({
-        name,
-        username,
-        profilePicture,
-      })
-
-      if (result.success) {
+      // Simulamos una actualización exitosa
+      setTimeout(() => {
         setSuccess("Perfil actualizado correctamente")
-      } else {
-        setError(result.error || "Error al actualizar perfil")
-      }
+        setIsLoading(false)
+      }, 1000)
     } catch (err) {
       setError("Error al actualizar perfil")
-    } finally {
       setIsLoading(false)
     }
   }
 
   const handleLogout = () => {
     logout()
-    router.push("/auth/login")
+    router.push("/")
   }
 
   // Función simulada para cargar imagen
@@ -85,14 +73,32 @@ export default function ProfilePage() {
     }
   }
 
-  if (!isAuthenticated) {
-    return null // No renderizar nada mientras redirige
+  // Función simplificada para manejar la navegación
+  const handleNavigate = (section: string) => {
+    setActiveSection(section)
+
+    // Mapa de rutas simplificado
+    const routes: Record<string, string> = {
+      home: "/",
+      images: "/images",
+      videos: "/videos",
+      upload: "/upload",
+      favorites: "/favorites",
+      recent: "/recent",
+      profile: "/profile",
+      history: "/history",
+    }
+
+    const path = routes[section]
+    if (path) {
+      router.push(path)
+    }
   }
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-background">
       {/* Sidebar Navigation */}
-      <MainNavigation activeSection={activeSection} onNavigate={setActiveSection} />
+      <MainNavigation activeSection={activeSection} onNavigate={handleNavigate} />
 
       {/* Main Content */}
       <main className="flex-1 min-h-screen">

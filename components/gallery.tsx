@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import MediaCard from "@/components/media-card"
 import MediaViewer from "@/components/media-viewer"
@@ -9,15 +9,12 @@ import type { MediaItem } from "@/lib/types"
 import Link from "next/link"
 import { Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { deleteMedia } from "@/lib/actions"
-import { useUser } from "@/contexts/user-context"
+import { useAuth } from "@/contexts/auth-context"
 import { toast } from "@/components/ui/use-toast"
 
 interface GalleryProps {
   mediaItems: MediaItem[]
   isLoading: boolean
-  favorites: string[]
-  onToggleFavorite: (id: string) => void
   showTypeFilter?: boolean
   defaultType?: string
   onMediaDeleted?: (id: string) => void
@@ -26,8 +23,6 @@ interface GalleryProps {
 export default function Gallery({
   mediaItems,
   isLoading,
-  favorites,
-  onToggleFavorite,
   showTypeFilter = true,
   defaultType = "all",
   onMediaDeleted,
@@ -35,7 +30,30 @@ export default function Gallery({
   const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null)
   const [activeTab, setActiveTab] = useState(defaultType)
   const [activeCategory, setActiveCategory] = useState("all")
-  const { userId } = useUser()
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
+  const { user, addToFavorites, removeFromFavorites, getFavorites, addToHistory } = useAuth()
+  const favorites = getFavorites()
+
+  // Cargar preferencia de vista al iniciar
+  useEffect(() => {
+    const savedViewMode = localStorage.getItem("viewMode") as "grid" | "list" | null
+    if (savedViewMode) {
+      setViewMode(savedViewMode)
+    }
+
+    // Escuchar cambios en el modo de vista
+    const handleViewModeChange = (event: any) => {
+      if (event.detail && event.detail.mode) {
+        setViewMode(event.detail.mode)
+      }
+    }
+
+    window.addEventListener("viewModeChange", handleViewModeChange)
+
+    return () => {
+      window.removeEventListener("viewModeChange", handleViewModeChange)
+    }
+  }, [])
 
   // Get unique categories from media items
   const categories = ["all", ...new Set(mediaItems.map((item) => item.category))]
@@ -51,24 +69,36 @@ export default function Gallery({
   // Manejar la eliminación de un medio
   const handleDelete = async (id: string) => {
     try {
-      const success = await deleteMedia(id, userId)
-
-      if (success) {
-        // Actualizar la UI eliminando el medio de la lista local
-        if (onMediaDeleted) {
-          onMediaDeleted(id)
-        }
-
-        toast({
-          title: "Éxito",
-          description: "El medio ha sido eliminado correctamente",
-        })
-      } else {
+      if (!user) {
         toast({
           title: "Error",
-          description: "No tienes permiso para eliminar este medio",
+          description: "Debes iniciar sesión para eliminar medios",
           variant: "destructive",
         })
+        return
+      }
+
+      // Actualizar la UI eliminando el medio de la lista local
+      if (onMediaDeleted) {
+        onMediaDeleted(id)
+      }
+
+      // Actualizar localStorage
+      const savedMedia = localStorage.getItem("mediaItems")
+      if (savedMedia) {
+        const parsedMedia = JSON.parse(savedMedia) as MediaItem[]
+        const updatedMedia = parsedMedia.filter((item) => item.id !== id)
+        localStorage.setItem("mediaItems", JSON.stringify(updatedMedia))
+      }
+
+      toast({
+        title: "Éxito",
+        description: "El medio ha sido eliminado correctamente",
+      })
+
+      // Cerrar el visor si el medio eliminado es el que se está viendo
+      if (selectedMedia && selectedMedia.id === id) {
+        setSelectedMedia(null)
       }
     } catch (error) {
       toast({
@@ -76,6 +106,25 @@ export default function Gallery({
         description: "Ha ocurrido un error al eliminar el medio",
         variant: "destructive",
       })
+    }
+  }
+
+  // Toggle favorite status
+  const toggleFavorite = (id: string) => {
+    if (favorites.includes(id)) {
+      removeFromFavorites(id)
+    } else {
+      addToFavorites(id)
+    }
+  }
+
+  // Manejar clic en un medio
+  const handleMediaClick = (item: MediaItem) => {
+    setSelectedMedia(item)
+
+    // Añadir al historial
+    if (user) {
+      addToHistory(item.id)
     }
   }
 
@@ -149,15 +198,22 @@ export default function Gallery({
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div
+          className={`gallery-container ${
+            viewMode === "grid"
+              ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+              : "flex flex-col gap-4"
+          }`}
+        >
           {filteredMedia.map((item) => (
             <MediaCard
               key={item.id}
               item={item}
-              onClick={() => setSelectedMedia(item)}
+              onClick={() => handleMediaClick(item)}
               isFavorite={favorites.includes(item.id)}
-              onToggleFavorite={() => onToggleFavorite(item.id)}
+              onToggleFavorite={() => toggleFavorite(item.id)}
               onDelete={handleDelete}
+              viewMode={viewMode}
             />
           ))}
         </div>
@@ -168,7 +224,7 @@ export default function Gallery({
           item={selectedMedia}
           onClose={() => setSelectedMedia(null)}
           isFavorite={favorites.includes(selectedMedia.id)}
-          onToggleFavorite={() => onToggleFavorite(selectedMedia.id)}
+          onToggleFavorite={() => toggleFavorite(selectedMedia.id)}
           onDelete={handleDelete}
         />
       )}

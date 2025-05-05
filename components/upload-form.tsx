@@ -295,28 +295,21 @@ export default function UploadForm() {
             </div>
           </div>
 
-          {/* Mostrar generador de miniaturas solo para videos */}
           {type === "video" && url && (
             <div className="mt-6">
               <div className="flex justify-between items-center mb-4">
                 <Label>Miniatura del Video</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowThumbnailGenerator(!showThumbnailGenerator)}
-                  className="text-sm"
-                >
-                  {showThumbnailGenerator ? "Ocultar generador" : "Generar miniatura"}
-                </Button>
               </div>
 
-              {showThumbnailGenerator ? (
-                <ThumbnailGenerator
-                  videoUrl={url}
-                  onThumbnailGenerated={handleThumbnailGenerated}
-                  autoGenerate={true}
-                />
-              ) : customThumbnail ? (
+              {/* Generador de miniaturas oculto pero funcional */}
+              <ThumbnailGenerator
+                videoUrl={url}
+                onThumbnailGenerated={handleThumbnailGenerated}
+                autoGenerate={true}
+                hidden={true}
+              />
+
+              {customThumbnail ? (
                 <div className="relative aspect-video w-full max-w-md mx-auto border border-muted rounded-md overflow-hidden">
                   <img
                     src={customThumbnail || "/placeholder.svg"}
@@ -324,22 +317,28 @@ export default function UploadForm() {
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute bottom-2 right-2">
-                    <Button type="button" size="sm" variant="secondary" onClick={() => setShowThumbnailGenerator(true)}>
-                      Cambiar
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        // Generar nueva miniatura automáticamente
+                        const generator = new ThumbnailGenerator({
+                          videoUrl: url,
+                          onThumbnailGenerated: handleThumbnailGenerated,
+                          autoGenerate: true,
+                          hidden: true,
+                        })
+                      }}
+                    >
+                      Regenerar
                     </Button>
                   </div>
                 </div>
               ) : (
                 <div className="bg-muted p-4 rounded-md text-center">
-                  <p className="text-muted-foreground mb-2">Es obligatorio generar una miniatura para los videos.</p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setShowThumbnailGenerator(true)}
-                    className="mx-auto"
-                  >
-                    Generar miniatura
-                  </Button>
+                  <p className="text-muted-foreground mb-2">Generando miniatura automáticamente...</p>
+                  <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto"></div>
                 </div>
               )}
             </div>

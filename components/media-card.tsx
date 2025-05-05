@@ -1,16 +1,13 @@
 "use client"
 
 import type React from "react"
-
-import Image from "next/image"
 import { Heart, Trash2 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { MediaItem } from "@/lib/types"
 import { useRef, useEffect, useState } from "react"
-import { useUser } from "@/contexts/user-context"
-import { useSession } from "next-auth/react"
+import { useAuth } from "@/contexts/auth-context"
 
 interface MediaCardProps {
   item: MediaItem
@@ -18,14 +15,21 @@ interface MediaCardProps {
   isFavorite: boolean
   onToggleFavorite: () => void
   onDelete?: (id: string) => void
+  viewMode?: "grid" | "list"
 }
 
-export default function MediaCard({ item, onClick, isFavorite, onToggleFavorite, onDelete }: MediaCardProps) {
+export default function MediaCard({
+  item,
+  onClick,
+  isFavorite,
+  onToggleFavorite,
+  onDelete,
+  viewMode = "grid",
+}: MediaCardProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [thumbnailUrl, setThumbnailUrl] = useState<string>("/video-thumbnail.png")
-  const { userId } = useUser()
-  const { data: session } = useSession()
-  const isOwner = (session?.user?.id || userId) === item.userId
+  const { user } = useAuth()
+  const isOwner = user?.id === item.userId
 
   // Mejorar la generación de miniaturas para videos
   useEffect(() => {
@@ -92,7 +96,9 @@ export default function MediaCard({ item, onClick, isFavorite, onToggleFavorite,
 
   return (
     <Card
-      className="overflow-hidden cursor-pointer transition-transform hover:scale-[1.02] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent bg-card border-muted"
+      className={`media-card overflow-hidden cursor-pointer transition-transform hover:scale-[1.02] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent bg-card border-muted ${
+        viewMode === "list" ? "flex flex-row" : ""
+      }`}
       onClick={onClick}
       tabIndex={0}
       onKeyDown={(e) => {
@@ -101,8 +107,8 @@ export default function MediaCard({ item, onClick, isFavorite, onToggleFavorite,
         }
       }}
     >
-      <CardContent className="p-0 relative">
-        <div className="absolute top-2 right-2 z-20 flex gap-1">
+      <CardContent className={`p-0 relative ${viewMode === "list" ? "flex flex-row w-full" : ""}`}>
+        <div className={`absolute top-2 right-2 z-20 flex gap-1 ${viewMode === "list" ? "top-auto bottom-2" : ""}`}>
           <Button
             variant="ghost"
             size="icon"
@@ -127,33 +133,36 @@ export default function MediaCard({ item, onClick, isFavorite, onToggleFavorite,
           )}
         </div>
 
-        <div className="aspect-video relative">
+        <div className={`media-thumbnail aspect-video relative ${viewMode === "list" ? "w-1/3" : ""}`}>
           {item.type === "image" ? (
-            <Image
+            <img
               src={item.url || "/placeholder.svg?height=400&width=600"}
               alt={item.title || "Imagen"}
-              fill
-              className="object-cover"
-              unoptimized={true}
+              className="w-full h-full object-cover"
               onContextMenu={(e) => e.preventDefault()}
               draggable={false}
             />
           ) : item.type === "video" ? (
             <>
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent z-5"></div>
-              <Image
+              <img
                 src={thumbnailUrl || "/placeholder.svg"}
                 alt={item.title || "Miniatura de video"}
-                fill
-                className="object-cover"
-                unoptimized={true}
+                className="w-full h-full object-cover"
                 onContextMenu={(e) => e.preventDefault()}
                 draggable={false}
               />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="rounded-full bg-black/50 p-3">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M8 5V19L19 12L8 5Z" fill="white" />
+                  </svg>
+                </div>
+              </div>
             </>
           ) : null}
         </div>
-        <div className="p-3">
+        <div className={`media-content p-3 ${viewMode === "list" ? "w-2/3" : ""}`}>
           <div className="flex justify-between items-start">
             <h3 className="font-medium truncate">{item.title || "Sin título"}</h3>
             <Badge variant="outline" className="ml-2 capitalize bg-muted text-accent border-accent">

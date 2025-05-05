@@ -11,12 +11,14 @@ interface ThumbnailGeneratorProps {
   videoUrl: string
   onThumbnailGenerated: (thumbnailUrl: string) => void
   autoGenerate?: boolean
+  hidden?: boolean // Nueva propiedad para ocultar el componente
 }
 
 export default function ThumbnailGenerator({
   videoUrl,
   onThumbnailGenerated,
   autoGenerate = true,
+  hidden = false, // Por defecto, el componente es visible
 }: ThumbnailGeneratorProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -27,17 +29,64 @@ export default function ThumbnailGenerator({
   const [isLoading, setIsLoading] = useState(false)
   const [videoLoaded, setVideoLoaded] = useState(false)
 
-  useEffect(() => {
-    if (!videoUrl) return
+  // Función para validar URL
+  const isValidUrl = (url: string): boolean => {
+    try {
+      new URL(url)
+      return true
+    } catch (e) {
+      return false
+    }
+  }
 
+  // Función para detectar si es una URL de YouTube
+  const isYouTubeUrl = (url: string): boolean => {
+    return url.includes("youtube.com") || url.includes("youtu.be")
+  }
+
+  // Función para obtener ID de YouTube
+  const getYouTubeVideoId = (url: string): string | null => {
+    try {
+      if (url.includes("youtu.be")) {
+        return url.split("/").pop()?.split("?")[0] || null
+      } else if (url.includes("v=")) {
+        return new URL(url).searchParams.get("v")
+      }
+      return null
+    } catch (e) {
+      return null
+    }
+  }
+
+  useEffect(() => {
+    if (!videoUrl || !isValidUrl(videoUrl)) {
+      setError("URL de video inválida")
+      return
+    }
+
+    setError(null)
+    setIsLoading(true)
+
+    // Si es YouTube, generar miniatura directamente
+    if (isYouTubeUrl(videoUrl)) {
+      const videoId = getYouTubeVideoId(videoUrl)
+      if (videoId) {
+        const youtubeThumb = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
+        setThumbnailUrl(youtubeThumb)
+        onThumbnailGenerated(youtubeThumb)
+        setIsLoading(false)
+        return
+      }
+    }
+
+    // Para videos directos
     const video = videoRef.current
     if (!video) return
 
-    // Reset state when video URL changes
+    // Reset state
     setCurrentTime(0)
     setDuration(0)
     setThumbnailUrl(null)
-    setError(null)
     setVideoLoaded(false)
 
     // Handle video metadata loaded
@@ -49,10 +98,10 @@ export default function ThumbnailGenerator({
         video.currentTime = initialTime
         setCurrentTime(initialTime)
         setVideoLoaded(true)
+        setIsLoading(false)
 
         // Auto-generate thumbnail if enabled
         if (autoGenerate) {
-          // Pequeño retraso para asegurar que el frame esté cargado
           setTimeout(() => {
             try {
               captureThumbnail()
@@ -66,10 +115,14 @@ export default function ThumbnailGenerator({
     }
 
     // Handle video errors
-    const handleError = (e: Event) => {
-      console.error("Error al cargar el video:", e)
+    const handleError = () => {
+      console.error("Error al cargar el video")
       setError("Error al cargar el video. Verifica que la URL sea válida y accesible.")
       setIsLoading(false)
+
+      // Generar una miniatura predeterminada para videos que no se pueden cargar
+      setThumbnailUrl("/video-thumbnail.png")
+      onThumbnailGenerated("/video-thumbnail.png")
     }
 
     video.addEventListener("loadedmetadata", handleMetadataLoaded)
@@ -77,11 +130,17 @@ export default function ThumbnailGenerator({
 
     // Load the video with error handling
     try {
+      video.crossOrigin = "anonymous"
       video.src = videoUrl
       video.load()
     } catch (e) {
       console.error("Error al establecer la URL del video:", e)
       setError("Error al cargar el video. La URL podría ser inválida.")
+      setIsLoading(false)
+
+      // Generar una miniatura predeterminada
+      setThumbnailUrl("/video-thumbnail.png")
+      onThumbnailGenerated("/video-thumbnail.png")
     }
 
     return () => {
@@ -110,6 +169,10 @@ export default function ThumbnailGenerator({
   const captureThumbnail = () => {
     if (!videoRef.current || !canvasRef.current) {
       setError("No se pudo acceder al video o al canvas")
+
+      // Usar miniatura predeterminada en caso de error
+      setThumbnailUrl("/video-thumbnail.png")
+      onThumbnailGenerated("/video-thumbnail.png")
       return
     }
 
@@ -119,6 +182,10 @@ export default function ThumbnailGenerator({
 
     if (!context) {
       setError("No se pudo obtener el contexto del canvas")
+
+      // Usar miniatura predeterminada en caso de error
+      setThumbnailUrl("/video-thumbnail.png")
+      onThumbnailGenerated("/video-thumbnail.png")
       return
     }
 
@@ -136,7 +203,11 @@ export default function ThumbnailGenerator({
       onThumbnailGenerated(dataUrl)
     } catch (err) {
       console.error("Error al generar miniatura:", err)
-      setError("Error al generar la miniatura. Intenta de nuevo o usa otra URL de video.")
+      setError("Error al generar la miniatura. Usando miniatura predeterminada.")
+
+      // Usar miniatura predeterminada en caso de error
+      setThumbnailUrl("/video-thumbnail.png")
+      onThumbnailGenerated("/video-thumbnail.png")
     }
   }
 
@@ -145,6 +216,40 @@ export default function ThumbnailGenerator({
     const mins = Math.floor(seconds / 60)
     const secs = Math.floor(seconds % 60)
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
+  }
+
+  // Si el componente debe estar oculto, solo renderizar los elementos necesarios para la funcionalidad
+  if (hidden) {
+    return (
+      <div style={{ display: "none" }}>
+        <video ref={videoRef} onTimeUpdate={handleTimeUpdate} playsInline muted crossOrigin="anonymous" />
+        <canvas ref={canvasRef} />
+      </div>
+    )
+  }
+
+  // Si es una URL de YouTube, mostrar una versión simplificada
+  if (isYouTubeUrl(videoUrl)) {
+    const videoId = getYouTubeVideoId(videoUrl)
+    const youtubeThumb = videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : "/video-thumbnail.png"
+
+    return (
+      <Card className="w-full bg-card border-muted">
+        <CardHeader>
+          <CardTitle>Miniatura de YouTube</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="relative aspect-video bg-black rounded-md overflow-hidden">
+            <img
+              src={youtubeThumb || "/placeholder.svg"}
+              alt="Miniatura de YouTube"
+              className="w-full h-full object-contain"
+            />
+          </div>
+          <p className="text-sm text-muted-foreground">Miniatura generada automáticamente para video de YouTube</p>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
@@ -231,7 +336,7 @@ export default function ThumbnailGenerator({
           type="button"
           className="w-full bg-accent hover:bg-accent/90"
           onClick={captureThumbnail}
-          disabled={!duration}
+          disabled={!duration && !isLoading}
         >
           <Camera className="mr-2 h-4 w-4" />
           {thumbnailUrl ? "Capturar Nueva Miniatura" : "Capturar Miniatura"}

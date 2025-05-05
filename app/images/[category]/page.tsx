@@ -4,9 +4,9 @@ import { Suspense, useState, useEffect } from "react"
 import Gallery from "@/components/gallery"
 import { GalleryHeader } from "@/components/gallery-header"
 import { MainNavigation } from "@/components/main-navigation"
-import { getMediaByType } from "@/lib/actions"
 import type { MediaItem } from "@/lib/types"
 import { useRouter, useParams } from "next/navigation"
+import { useAuth } from "@/contexts/auth-context"
 
 export default function ImageCategoryPage() {
   const params = useParams()
@@ -14,8 +14,8 @@ export default function ImageCategoryPage() {
   const [activeSection, setActiveSection] = useState<string>(`images/${category}`)
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [favorites, setFavorites] = useState<string[]>([])
   const router = useRouter()
+  const { addToFavorites, removeFromFavorites, getFavorites } = useAuth()
 
   // Traducir categoría para el título
   const translateCategory = (cat: string) => {
@@ -43,46 +43,19 @@ export default function ImageCategoryPage() {
             ),
           )
         } else {
-          // Si no hay datos en localStorage, cargar desde el servidor
-          const allImages = await getMediaByType("image")
-          const filteredImages = allImages.filter((item) => item.category.toLowerCase() === category.toLowerCase())
-          setMediaItems(filteredImages)
+          // Si no hay datos en localStorage, mostrar array vacío
+          setMediaItems([])
         }
       } catch (error) {
         console.error(`Error al cargar las imágenes de la categoría ${category}:`, error)
-
-        // Intentar cargar desde el servidor como respaldo
-        try {
-          const allImages = await getMediaByType("image")
-          const filteredImages = allImages.filter((item) => item.category.toLowerCase() === category.toLowerCase())
-          setMediaItems(filteredImages)
-        } catch (e) {
-          console.error(`Error al cargar las imágenes de la categoría ${category} desde el servidor:`, e)
-        }
+        setMediaItems([])
       } finally {
         setIsLoading(false)
       }
     }
 
-    // Load favorites from localStorage
-    const savedFavorites = localStorage.getItem("favorites")
-    if (savedFavorites) {
-      setFavorites(JSON.parse(savedFavorites))
-    }
-
     fetchMedia()
   }, [category])
-
-  // Toggle favorite status
-  const toggleFavorite = (id: string) => {
-    setFavorites((prev) => {
-      const newFavorites = prev.includes(id) ? prev.filter((itemId) => itemId !== id) : [...prev, id]
-
-      // Save to localStorage
-      localStorage.setItem("favorites", JSON.stringify(newFavorites))
-      return newFavorites
-    })
-  }
 
   // Manejar la eliminación de un medio
   const handleMediaDeleted = (id: string) => {
@@ -122,6 +95,7 @@ export default function ImageCategoryPage() {
       { id: "upload", path: "/upload" },
       { id: "favorites", path: "/favorites" },
       { id: "recent", path: "/recent" },
+      { id: "history", path: "/history" },
     ]
 
     const selectedCategory = findCategory(categories, section)
@@ -159,8 +133,6 @@ export default function ImageCategoryPage() {
               <Gallery
                 mediaItems={mediaItems}
                 isLoading={isLoading}
-                favorites={favorites}
-                onToggleFavorite={toggleFavorite}
                 showTypeFilter={false}
                 defaultType="image"
                 onMediaDeleted={handleMediaDeleted}

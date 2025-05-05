@@ -1,11 +1,14 @@
 "use server"
 
-import type { MediaItem } from "./types"
+import type { MediaItem, Comment } from "./types"
 import { revalidatePath } from "next/cache"
 
 // Base de datos simulada para almacenar medios
 // En una implementación real, esto sería una base de datos persistente
 let mediaDatabase: MediaItem[] = []
+
+// Base de datos simulada para comentarios
+let commentsDatabase: Comment[] = []
 
 // Base de datos simulada para usuarios
 // Añadimos un usuario de prueba para facilitar el inicio de sesión
@@ -353,5 +356,84 @@ export async function socialLogin(
   } catch (error) {
     console.error(`Error al iniciar sesión con ${provider}:`, error)
     return { success: false, error: `Error al iniciar sesión con ${provider}` }
+  }
+}
+
+// Nuevas funciones para comentarios
+
+// Obtener comentarios de un medio
+export async function getComments(mediaId: string): Promise<Comment[]> {
+  // Simular retraso de API
+  await new Promise((resolve) => setTimeout(resolve, 300))
+
+  // Filtrar comentarios por mediaId y ordenar por más reciente primero
+  return [...commentsDatabase]
+    .filter((comment) => comment.mediaId === mediaId)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+}
+
+// Añadir un comentario
+export async function addComment(
+  mediaId: string,
+  userId: string,
+  userName: string,
+  text: string,
+  userAvatar?: string,
+): Promise<Comment> {
+  // Validar datos
+  if (!mediaId || !userId || !text.trim()) {
+    throw new Error("Datos de comentario incompletos")
+  }
+
+  // Crear nuevo comentario
+  const newComment: Comment = {
+    id: Date.now().toString(),
+    mediaId,
+    userId,
+    userName,
+    userAvatar,
+    text: text.trim(),
+    createdAt: new Date().toISOString(),
+  }
+
+  // Añadir a la base de datos
+  commentsDatabase = [newComment, ...commentsDatabase]
+
+  return newComment
+}
+
+// Eliminar un comentario
+export async function deleteComment(commentId: string, userId: string): Promise<boolean> {
+  // Buscar el comentario en la base de datos
+  const commentIndex = commentsDatabase.findIndex((comment) => comment.id === commentId)
+
+  // Si no se encuentra el comentario, retornar false
+  if (commentIndex === -1) {
+    return false
+  }
+
+  // Verificar que el usuario que intenta eliminar es el autor
+  if (commentsDatabase[commentIndex].userId !== userId) {
+    return false
+  }
+
+  // Eliminar el comentario de la base de datos
+  commentsDatabase.splice(commentIndex, 1)
+
+  return true
+}
+
+// Sincronizar comentarios con localStorage
+export async function syncCommentsDatabase(comments: Comment[]): Promise<void> {
+  try {
+    if (!comments || !Array.isArray(comments)) {
+      console.error("Los datos de comentarios no son un array válido")
+      commentsDatabase = []
+    } else {
+      commentsDatabase = comments
+    }
+  } catch (error) {
+    console.error("Error al sincronizar la base de datos de comentarios:", error)
+    commentsDatabase = []
   }
 }

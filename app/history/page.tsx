@@ -1,7 +1,5 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useEffect } from "react"
 import { GalleryHeader } from "@/components/gallery-header"
 import { MainNavigation } from "@/components/main-navigation"
@@ -11,7 +9,6 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import Image from "next/image"
 import { useAuth } from "@/contexts/auth-context"
-import { StarOff } from "lucide-react"
 
 // Versión simplificada de MediaItem
 interface SimpleMediaItem {
@@ -25,39 +22,48 @@ interface SimpleMediaItem {
   userId: string
 }
 
-export default function FavoritesPage() {
-  const [activeSection, setActiveSection] = useState<string>("favorites")
+export default function HistoryPage() {
+  const [activeSection, setActiveSection] = useState<string>("history")
   const [mediaItems, setMediaItems] = useState<SimpleMediaItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
-  const { user, isAuthenticated, getFavorites, removeFromFavorites, addToHistory } = useAuth()
+  const { user, isAuthenticated, getHistory, addToHistory } = useAuth()
 
   // Redirigir si no está autenticado
   useEffect(() => {
     if (!isAuthenticated && !isLoading) {
-      router.push("/auth/login?callbackUrl=/favorites")
+      router.push("/auth/login?callbackUrl=/history")
     }
   }, [isAuthenticated, isLoading, router])
 
-  // Cargar favoritos
+  // Cargar historial
   useEffect(() => {
-    const loadFavorites = async () => {
+    const loadHistory = async () => {
       if (!isAuthenticated || !user) {
         setIsLoading(false)
         return
       }
 
       try {
-        const favoriteIds = getFavorites()
+        const historyIds = getHistory()
         const savedMedia = localStorage.getItem("mediaItems")
 
-        if (savedMedia && favoriteIds.length > 0) {
+        if (savedMedia && historyIds.length > 0) {
           try {
             const allMedia = JSON.parse(savedMedia)
             if (Array.isArray(allMedia)) {
-              // Filtrar solo los favoritos
-              const favorites = allMedia.filter((item) => favoriteIds.includes(item.id))
-              setMediaItems(favorites)
+              // Filtrar y ordenar según el historial
+              const historyItems: SimpleMediaItem[] = []
+
+              // Mantener el orden del historial
+              for (const id of historyIds) {
+                const item = allMedia.find((media) => media.id === id)
+                if (item) {
+                  historyItems.push(item)
+                }
+              }
+
+              setMediaItems(historyItems)
             } else {
               setMediaItems([])
             }
@@ -69,15 +75,15 @@ export default function FavoritesPage() {
           setMediaItems([])
         }
       } catch (e) {
-        console.error("Error al cargar favoritos:", e)
+        console.error("Error al cargar historial:", e)
         setMediaItems([])
       } finally {
         setIsLoading(false)
       }
     }
 
-    loadFavorites()
-  }, [isAuthenticated, user, getFavorites])
+    loadHistory()
+  }, [isAuthenticated, user, getHistory])
 
   // Función simplificada para manejar la navegación
   const handleNavigate = (section: string) => {
@@ -103,7 +109,7 @@ export default function FavoritesPage() {
 
   // Función para abrir un medio
   const handleMediaClick = (item: SimpleMediaItem) => {
-    // Añadir al historial
+    // Añadir al historial (actualiza el orden)
     if (user) {
       addToHistory(item.id)
     }
@@ -114,13 +120,6 @@ export default function FavoritesPage() {
     } else if (item.type === "video") {
       window.open(item.url, "_blank")
     }
-  }
-
-  // Función para quitar de favoritos
-  const handleRemoveFavorite = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation()
-    removeFromFavorites(id)
-    setMediaItems((prev) => prev.filter((item) => item.id !== id))
   }
 
   if (!isAuthenticated && !isLoading) {
@@ -135,7 +134,7 @@ export default function FavoritesPage() {
       {/* Main Content */}
       <main className="flex-1 min-h-screen">
         <div className="container mx-auto px-4 py-8">
-          <GalleryHeader title="Favoritos" subtitle="Tu colección de medios favoritos" />
+          <GalleryHeader title="Historial" subtitle="Medios que has visto recientemente" />
 
           <section>
             {isLoading ? (
@@ -148,9 +147,7 @@ export default function FavoritesPage() {
               </div>
             ) : mediaItems.length === 0 ? (
               <div className="text-center py-12 bg-card rounded-lg border border-muted p-8">
-                <p className="text-gray-400 mb-4">
-                  No tienes favoritos. Marca algunos medios como favoritos para verlos aquí.
-                </p>
+                <p className="text-gray-400 mb-4">Tu historial está vacío. Explora la galería para ver medios.</p>
                 <Button asChild className="bg-accent hover:bg-accent/90 text-white">
                   <Link href="/">Explorar Galería</Link>
                 </Button>
@@ -164,17 +161,6 @@ export default function FavoritesPage() {
                     onClick={() => handleMediaClick(item)}
                   >
                     <CardContent className="p-0 relative">
-                      <div className="absolute top-2 right-2 z-10">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="bg-black/30 hover:bg-black/50 text-white rounded-full h-8 w-8"
-                          onClick={(e) => handleRemoveFavorite(e, item.id)}
-                        >
-                          <StarOff className="h-4 w-4 text-accent" />
-                          <span className="sr-only">Quitar de favoritos</span>
-                        </Button>
-                      </div>
                       <div className="aspect-video relative">
                         {item.type === "image" ? (
                           <Image

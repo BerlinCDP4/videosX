@@ -5,11 +5,24 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { ChevronDown, ChevronRight, Film, ImageIcon, Menu, Home, Star, Clock, Upload, User, LogIn } from "lucide-react"
+import {
+  ChevronDown,
+  ChevronRight,
+  Film,
+  ImageIcon,
+  Menu,
+  Home,
+  Star,
+  Clock,
+  Upload,
+  User,
+  LogIn,
+  History,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useRouter } from "next/navigation"
-import { UserAvatar } from "@/components/user-avatar"
+import { UserProfileMenu } from "@/components/user-profile-menu"
 import { useAuth } from "@/contexts/auth-context"
 
 interface Category {
@@ -34,10 +47,10 @@ const categories: Category[] = [
     icon: <ImageIcon className="h-5 w-5" />,
     path: "/images",
     subcategories: [
-      { id: "amateur", name: "Amateur", path: "/images/amateur" },
-      { id: "famosas", name: "Famosas", path: "/images/famosas" },
-      { id: "monica", name: "Monica", path: "/images/monica" },
-      { id: "estudio", name: "Estudio", path: "/images/estudio" },
+      { id: "images/amateur", name: "Amateur", path: "/images/amateur" },
+      { id: "images/famosas", name: "Famosas", path: "/images/famosas" },
+      { id: "images/monica", name: "Monica", path: "/images/monica" },
+      { id: "images/estudio", name: "Estudio", path: "/images/estudio" },
     ],
   },
   {
@@ -46,10 +59,10 @@ const categories: Category[] = [
     icon: <Film className="h-5 w-5" />,
     path: "/videos",
     subcategories: [
-      { id: "amateur", name: "Amateur", path: "/videos/amateur" },
-      { id: "famosas", name: "Famosas", path: "/videos/famosas" },
-      { id: "monica", name: "Monica", path: "/videos/monica" },
-      { id: "estudio", name: "Estudio", path: "/videos/estudio" },
+      { id: "videos/amateur", name: "Amateur", path: "/videos/amateur" },
+      { id: "videos/famosas", name: "Famosas", path: "/videos/famosas" },
+      { id: "videos/monica", name: "Monica", path: "/videos/monica" },
+      { id: "videos/estudio", name: "Estudio", path: "/videos/estudio" },
     ],
   },
   {
@@ -64,12 +77,20 @@ const categories: Category[] = [
     name: "Favoritos",
     icon: <Star className="h-5 w-5" />,
     path: "/favorites",
+    requiresAuth: true,
   },
   {
     id: "recent",
     name: "Recientes",
     icon: <Clock className="h-5 w-5" />,
     path: "/recent",
+  },
+  {
+    id: "history",
+    name: "Historial",
+    icon: <History className="h-5 w-5" />,
+    path: "/history",
+    requiresAuth: true,
   },
   {
     id: "profile",
@@ -86,10 +107,14 @@ interface MainNavigationProps {
 }
 
 export function MainNavigation({ activeSection, onNavigate }: MainNavigationProps) {
-  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({})
+  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({
+    // Abrir las categorías principales por defecto
+    images: true,
+    videos: true,
+  })
   const isMobile = useMediaQuery("(max-width: 768px)")
   const router = useRouter()
-  const { user, isAuthenticated, logout } = useAuth()
+  const { user, isAuthenticated } = useAuth()
 
   const toggleCategory = (categoryName: string) => {
     setOpenCategories((prev) => ({
@@ -98,29 +123,16 @@ export function MainNavigation({ activeSection, onNavigate }: MainNavigationProp
     }))
   }
 
-  const handleNavigation = (categoryId: string, requiresAuth = false) => {
+  const handleNavigation = (categoryId: string, path?: string, requiresAuth = false) => {
     // Si requiere autenticación y el usuario no está autenticado, redirigir a login
     if (requiresAuth && !isAuthenticated) {
-      router.push(`/auth/login?callbackUrl=${encodeURIComponent(`/${categoryId}`)}`)
+      router.push(`/auth/login?callbackUrl=${encodeURIComponent(path || "/")}`)
       return
     }
 
-    // Encontrar la categoría seleccionada
-    const findCategory = (categories: Category[], id: string): Category | undefined => {
-      for (const category of categories) {
-        if (category.id === id) return category
-        if (category.subcategories) {
-          const found = findCategory(category.subcategories, id)
-          if (found) return found
-        }
-      }
-      return undefined
-    }
-
-    const selectedCategory = findCategory(categories, categoryId)
-
-    if (selectedCategory?.path) {
-      router.push(selectedCategory.path)
+    // Navegar directamente a la ruta si se proporciona
+    if (path) {
+      router.push(path)
     }
 
     onNavigate(categoryId)
@@ -134,11 +146,6 @@ export function MainNavigation({ activeSection, onNavigate }: MainNavigationProp
     }
   }
 
-  const handleLogout = () => {
-    logout()
-    router.push("/")
-  }
-
   const CategoryItem = ({ category, level = 0 }: { category: Category; level?: number }) => {
     const hasSubcategories = category.subcategories && category.subcategories.length > 0
     const isOpen = openCategories[category.name]
@@ -148,7 +155,7 @@ export function MainNavigation({ activeSection, onNavigate }: MainNavigationProp
       if (hasSubcategories) {
         toggleCategory(category.name)
       } else {
-        handleNavigation(category.id, category.requiresAuth)
+        handleNavigation(category.id, category.path, category.requiresAuth)
       }
     }
 
@@ -196,7 +203,28 @@ export function MainNavigation({ activeSection, onNavigate }: MainNavigationProp
         {hasSubcategories && isOpen && (
           <div className="ml-2 border-l-2 border-muted">
             {category.subcategories?.map((subcategory) => (
-              <CategoryItem key={subcategory.id} category={subcategory} level={level + 1} />
+              <div
+                key={subcategory.id}
+                className={cn(
+                  "flex items-center py-2 px-3 rounded-md transition-colors",
+                  "hover:bg-muted hover:text-accent",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+                  "focus-visible:ring-accent focus-visible:ring-offset-background",
+                  subcategory.id === activeSection && "bg-muted text-accent font-medium",
+                  "text-sm",
+                )}
+                style={{ paddingLeft: `${(level + 1) * 12 + 12}px` }}
+                tabIndex={0}
+                role="button"
+                onClick={() => handleNavigation(subcategory.id, subcategory.path, subcategory.requiresAuth)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    handleNavigation(subcategory.id, subcategory.path, subcategory.requiresAuth)
+                  }
+                }}
+              >
+                <span className="flex-1">{subcategory.name}</span>
+              </div>
             ))}
           </div>
         )}
@@ -208,15 +236,12 @@ export function MainNavigation({ activeSection, onNavigate }: MainNavigationProp
     <ScrollArea className="h-full">
       <div className="py-4 px-2">
         <div className="flex items-center gap-3 px-4 mb-6">
-          <UserAvatar />
+          <UserProfileMenu />
           <div>
             {isAuthenticated && user ? (
               <div>
                 <p className="font-medium text-sm">{user.name}</p>
                 <p className="text-xs text-muted-foreground">{user.email}</p>
-                <Button variant="link" size="sm" className="p-0 h-auto text-xs text-accent" onClick={handleLogout}>
-                  Cerrar sesión
-                </Button>
               </div>
             ) : (
               <div>

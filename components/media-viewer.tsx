@@ -7,8 +7,7 @@ import Image from "next/image"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { MediaItem } from "@/lib/types"
-import { useUser } from "@/contexts/user-context"
-import { useSession } from "next-auth/react"
+import { useAuth } from "@/contexts/auth-context"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,6 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import CommentsSection from "@/components/comments-section"
 
 interface MediaViewerProps {
   item: MediaItem
@@ -33,9 +33,8 @@ export default function MediaViewer({ item, onClose, isFavorite, onToggleFavorit
   const containerRef = useRef<HTMLDivElement>(null)
   const [isVideoLoaded, setIsVideoLoaded] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const { userId } = useUser()
-  const { data: session } = useSession()
-  const isOwner = (session?.user?.id || userId) === item.userId
+  const { user } = useAuth()
+  const isOwner = user?.id === item.userId
   const [thumbnailUrl, setThumbnailUrl] = useState<string>("/video-thumbnail.png")
 
   // Handle keyboard navigation for TV interfaces
@@ -154,6 +153,30 @@ export default function MediaViewer({ item, onClose, isFavorite, onToggleFavorit
           </div>
         )
       case "video":
+        // Detectar si es un video de YouTube
+        if (item.url.includes("youtube.com") || item.url.includes("youtu.be")) {
+          let videoId = null
+          if (item.url.includes("youtu.be")) {
+            videoId = item.url.split("/").pop()?.split("?")[0]
+          } else if (item.url.includes("v=")) {
+            videoId = new URL(item.url).searchParams.get("v")
+          }
+
+          if (videoId) {
+            return (
+              <div className="relative w-full aspect-[16/9]">
+                <iframe
+                  src={`https://www.youtube.com/embed/${videoId}`}
+                  className="w-full h-full"
+                  allowFullScreen
+                  title={item.title || "Video de YouTube"}
+                ></iframe>
+              </div>
+            )
+          }
+        }
+
+        // Para videos directos
         return (
           <div className="relative w-full aspect-[16/9]">
             <video
@@ -215,6 +238,9 @@ export default function MediaViewer({ item, onClose, isFavorite, onToggleFavorit
             </div>
           </DialogHeader>
           <div className="mt-4">{renderContent()}</div>
+
+          {/* Sección de comentarios */}
+          <CommentsSection mediaId={item.id} />
         </DialogContent>
       </Dialog>
 
