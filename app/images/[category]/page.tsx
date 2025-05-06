@@ -1,12 +1,15 @@
 "use client"
 
-import { Suspense, useState, useEffect } from "react"
-import Gallery from "@/components/gallery"
+import { useState, useEffect } from "react"
 import { GalleryHeader } from "@/components/gallery-header"
 import { MainNavigation } from "@/components/main-navigation"
 import type { MediaItem } from "@/lib/types"
 import { useRouter, useParams } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
+import { Button } from "@/components/ui/button"
+import { Home } from "lucide-react"
+import MediaCard from "@/components/media-card"
+import MediaViewer from "@/components/media-viewer"
 
 export default function ImageCategoryPage() {
   const params = useParams()
@@ -14,8 +17,10 @@ export default function ImageCategoryPage() {
   const [activeSection, setActiveSection] = useState<string>(`images/${category}`)
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null)
   const router = useRouter()
-  const { addToFavorites, removeFromFavorites, getFavorites } = useAuth()
+  const { user, addToFavorites, removeFromFavorites, getFavorites, addToHistory } = useAuth()
+  const favorites = getFavorites()
 
   // Traducir categoría para el título
   const translateCategory = (cat: string) => {
@@ -31,19 +36,23 @@ export default function ImageCategoryPage() {
 
   useEffect(() => {
     const fetchMedia = async () => {
+      setIsLoading(true)
       try {
-        // Intentar cargar desde localStorage primero
+        // Intentar cargar desde localStorage
         const savedMedia = localStorage.getItem("mediaItems")
         if (savedMedia) {
-          const parsedMedia = JSON.parse(savedMedia) as MediaItem[]
-          // Filtrar por tipo imagen y categoría
-          setMediaItems(
-            parsedMedia.filter(
+          try {
+            const parsedMedia = JSON.parse(savedMedia) as MediaItem[]
+            // Filtrar por tipo imagen y categoría (insensible a mayúsculas/minúsculas)
+            const filteredMedia = parsedMedia.filter(
               (item) => item.type === "image" && item.category.toLowerCase() === category.toLowerCase(),
-            ),
-          )
+            )
+            setMediaItems(filteredMedia)
+          } catch (parseError) {
+            console.error("Error al parsear los datos guardados:", parseError)
+            setMediaItems([])
+          }
         } else {
-          // Si no hay datos en localStorage, mostrar array vacío
           setMediaItems([])
         }
       } catch (error) {
@@ -69,39 +78,57 @@ export default function ImageCategoryPage() {
       const updatedMedia = parsedMedia.filter((item) => item.id !== id)
       localStorage.setItem("mediaItems", JSON.stringify(updatedMedia))
     }
+
+    // Cerrar el visor si el medio eliminado es el que se está viendo
+    if (selectedMedia && selectedMedia.id === id) {
+      setSelectedMedia(null)
+    }
+  }
+
+  // Función para abrir un medio
+  const handleMediaClick = (item: MediaItem) => {
+    // Añadir al historial
+    if (user) {
+      addToHistory(item.id)
+    }
+
+    // Mostrar el medio en el visor
+    setSelectedMedia(item)
+  }
+
+  // Toggle favorite status
+  const toggleFavorite = (id: string) => {
+    if (favorites.includes(id)) {
+      removeFromFavorites(id)
+    } else {
+      addToFavorites(id)
+    }
+  }
+
+  // Función para volver al inicio
+  const handleGoHome = () => {
+    router.push("/")
   }
 
   // Actualizar la función que maneja la navegación:
   const handleNavigate = (section: string) => {
     setActiveSection(section)
 
-    // Encontrar la categoría seleccionada
-    const findCategory = (categories: any[], id: string): any | undefined => {
-      for (const category of categories) {
-        if (category.id === id) return category
-        if (category.subcategories) {
-          const found = findCategory(category.subcategories, id)
-          if (found) return found
-        }
-      }
-      return undefined
+    // Mapa de rutas simplificado
+    const routes: Record<string, string> = {
+      home: "/",
+      images: "/images",
+      videos: "/videos",
+      upload: "/upload",
+      favorites: "/favorites",
+      recent: "/recent",
+      profile: "/profile",
+      history: "/history",
     }
 
-    // Simular las categorías que están en MainNavigation
-    const categories = [
-      { id: "home", path: "/" },
-      { id: "images", path: "/images" },
-      { id: "videos", path: "/videos" },
-      { id: "upload", path: "/upload" },
-      { id: "favorites", path: "/favorites" },
-      { id: "recent", path: "/recent" },
-      { id: "history", path: "/history" },
-    ]
-
-    const selectedCategory = findCategory(categories, section)
-
-    if (selectedCategory?.path) {
-      router.push(selectedCategory.path)
+    const path = routes[section]
+    if (path) {
+      router.push(path)
     }
   }
 
@@ -113,34 +140,67 @@ export default function ImageCategoryPage() {
       {/* Main Content */}
       <main className="flex-1 min-h-screen">
         <div className="container mx-auto px-4 py-8">
+          {/* Botón de inicio para móvil */}
+          <div className="md:hidden flex justify-between items-center mb-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleGoHome}
+              className="bg-accent hover:bg-accent/90 text-white border-none"
+            >
+              <Home className="h-4 w-4 mr-2" /> Inicio
+            </Button>
+          </div>
+
           <GalleryHeader
             title={`Imágenes - ${translateCategory(category)}`}
             subtitle={`Explora tu colección de imágenes de la categoría ${translateCategory(category)}`}
           />
 
           <section>
-            <Suspense
-              fallback={
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {Array(8)
-                    .fill(0)
-                    .map((_, i) => (
-                      <div key={i} className="bg-muted rounded-lg aspect-video animate-pulse" />
-                    ))}
-                </div>
-              }
-            >
-              <Gallery
-                mediaItems={mediaItems}
-                isLoading={isLoading}
-                showTypeFilter={false}
-                defaultType="image"
-                onMediaDeleted={handleMediaDeleted}
-              />
-            </Suspense>
+            {isLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {Array(8)
+                  .fill(0)
+                  .map((_, i) => (
+                    <div key={i} className="bg-muted rounded-lg aspect-video animate-pulse" />
+                  ))}
+              </div>
+            ) : mediaItems.length === 0 ? (
+              <div className="text-center py-12 bg-card rounded-lg border border-muted p-8">
+                <p className="text-gray-400 mb-4">No se encontraron imágenes en esta categoría.</p>
+                <Button onClick={() => router.push("/images")} className="bg-accent hover:bg-accent/90 text-white">
+                  Ver todas las categorías
+                </Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {mediaItems.map((item) => (
+                  <MediaCard
+                    key={item.id}
+                    item={item}
+                    onClick={() => handleMediaClick(item)}
+                    isFavorite={favorites.includes(item.id)}
+                    onToggleFavorite={() => toggleFavorite(item.id)}
+                    onDelete={user?.id === item.userId ? handleMediaDeleted : undefined}
+                  />
+                ))}
+              </div>
+            )}
           </section>
         </div>
       </main>
+
+      {/* Visor de medios */}
+      {selectedMedia && (
+        <MediaViewer
+          item={selectedMedia}
+          onClose={() => setSelectedMedia(null)}
+          isFavorite={favorites.includes(selectedMedia.id)}
+          onToggleFavorite={() => toggleFavorite(selectedMedia.id)}
+          onDelete={user?.id === selectedMedia.userId ? handleMediaDeleted : undefined}
+        />
+      )}
     </div>
   )
 }

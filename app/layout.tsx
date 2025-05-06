@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { UserProvider } from "@/contexts/user-context"
 import { AuthProvider } from "@/contexts/auth-context"
+import { MobileHomeButton } from "@/components/mobile-home-button"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -30,6 +31,7 @@ export default function RootLayout({
           <AuthProvider>
             <UserProvider>
               {children}
+              <MobileHomeButton />
               <Toaster />
             </UserProvider>
           </AuthProvider>

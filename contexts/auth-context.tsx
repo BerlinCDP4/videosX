@@ -1,7 +1,6 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import { userService, initializeDatabase } from "@/lib/vercel-storage"
 import type { User } from "@/lib/types"
 
 // Definir el tipo de contexto de autenticación
@@ -32,19 +31,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Inicializar la base de datos y verificar si hay una sesión guardada al cargar
   useEffect(() => {
-    // Inicializar la base de datos
+    // Inicializar la base de datos si no existe
     initializeDatabase()
 
     // Verificar si hay una sesión guardada
-    const { user: sessionUser, remembered } = userService.getSession()
+    const sessionData = localStorage.getItem("user_session")
+    const remembered = localStorage.getItem("user_remembered") === "true"
 
-    if (sessionUser) {
-      setUser(sessionUser)
-      setIsRemembered(remembered)
+    if (sessionData) {
+      try {
+        const sessionUser = JSON.parse(sessionData)
+        setUser(sessionUser)
+        setIsRemembered(remembered)
+      } catch (error) {
+        console.error("Error al cargar la sesión:", error)
+      }
     }
 
     setIsLoading(false)
   }, [])
+
+  // Inicializar la base de datos
+  const initializeDatabase = () => {
+    if (!localStorage.getItem("users_db")) {
+      localStorage.setItem("users_db", JSON.stringify([]))
+    }
+    if (!localStorage.getItem("mediaItems")) {
+      localStorage.setItem("mediaItems", JSON.stringify([]))
+    }
+  }
 
   // Función de inicio de sesión con opción de recordar
   const login = async (email: string, password: string, remember = false): Promise<boolean> => {
@@ -52,14 +67,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await new Promise((resolve) => setTimeout(resolve, 500))
 
     // Verificar credenciales
-    const loggedInUser = userService.login(email, password)
+    const users = JSON.parse(localStorage.getItem("users_db") || "[]")
+    const foundUser = users.find((u: any) => u.email === email && u.password === password)
 
-    if (loggedInUser) {
-      setUser(loggedInUser)
+    if (foundUser) {
+      // No devolver la contraseña
+      const { password: _, ...userWithoutPassword } = foundUser
+      setUser(userWithoutPassword)
       setIsRemembered(remember)
 
       // Guardar sesión
-      userService.saveSession(loggedInUser, remember)
+      localStorage.setItem("user_session", JSON.stringify(userWithoutPassword))
+      if (remember) {
+        localStorage.setItem("user_remembered", "true")
+      } else {
+        localStorage.removeItem("user_remembered")
+        sessionStorage.setItem("auth_session", "true")
+      }
 
       return true
     }
@@ -71,29 +95,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Simular una petición de API
     await new Promise((resolve) => setTimeout(resolve, 500))
 
-    // Registrar nuevo usuario
-    const newUser = userService.register(userData)
+    const users = JSON.parse(localStorage.getItem("users_db") || "[]")
 
-    if (newUser) {
-      // Iniciar sesión automáticamente después del registro
-      setUser(newUser)
-      setIsRemembered(false)
-
-      // Guardar sesión
-      userService.saveSession(newUser, false)
-      sessionStorage.setItem("auth_session", "true")
-
-      return true
+    // Verificar si el email ya está registrado
+    if (users.some((u: any) => u.email === userData.email)) {
+      return false
     }
 
-    return false
+    // Crear nuevo usuario
+    const newUser = {
+      id: Date.now().toString(),
+      name: userData.name,
+      email: userData.email,
+      password: userData.password,
+      image: "",
+      favorites: [],
+      history: [],
+      createdAt: new Date().toISOString(),
+    }
+
+    // Guardar en la base de datos
+    localStorage.setItem("users_db", JSON.stringify([...users, newUser]))
+
+    // Iniciar sesión automáticamente
+    const { password: _, ...userWithoutPassword } = newUser
+    setUser(userWithoutPassword)
+    setIsRemembered(false)
+
+    // Guardar sesión
+    localStorage.setItem("user_session", JSON.stringify(userWithoutPassword))
+    sessionStorage.setItem("auth_session", "true")
+
+    return true
   }
 
   // Función de cierre de sesión
   const logout = () => {
     setUser(null)
     setIsRemembered(false)
-    userService.logout()
+    localStorage.removeItem("user_session")
+    localStorage.removeItem("user_remembered")
+    sessionStorage.removeItem("auth_session")
   }
 
   // Función para actualizar el perfil del usuario
@@ -102,7 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Actualizar la sesión
     if (updatedUser) {
-      userService.saveSession(updatedUser, isRemembered)
+      localStorage.setItem("user_session", JSON.stringify(updatedUser))
     }
   }
 
@@ -110,43 +152,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const addToFavorites = (mediaId: string) => {
     if (!user) return
 
-    userService.addToFavorites(user.id, mediaId)
-
     // Actualizar estado local
-    setUser((prev) => {
-      if (!prev) return null
-      const updatedFavorites = [...(prev.favorites || []), mediaId]
-      return { ...prev, favorites: updatedFavorites }
-    })
+    const updatedFavorites = [...(user.favorites || []), mediaId]
+    const updatedUser = { ...user, favorites: updatedFavorites }
+    setUser(updatedUser)
+
+    // Actualizar en la base de datos
+    const users = JSON.parse(localStorage.getItem("users_db") || "[]")
+    const userIndex = users.findIndex((u: any) => u.id === user.id)
+
+    if (userIndex !== -1) {
+      users[userIndex].favorites = updatedFavorites
+      localStorage.setItem("users_db", JSON.stringify(users))
+    }
+
+    // Actualizar sesión
+    localStorage.setItem("user_session", JSON.stringify(updatedUser))
   }
 
   // Función para eliminar de favoritos
   const removeFromFavorites = (mediaId: string) => {
     if (!user || !user.favorites) return
 
-    userService.removeFromFavorites(user.id, mediaId)
-
     // Actualizar estado local
-    setUser((prev) => {
-      if (!prev) return null
-      const updatedFavorites = prev.favorites?.filter((id) => id !== mediaId) || []
-      return { ...prev, favorites: updatedFavorites }
-    })
+    const updatedFavorites = user.favorites.filter((id) => id !== mediaId)
+    const updatedUser = { ...user, favorites: updatedFavorites }
+    setUser(updatedUser)
+
+    // Actualizar en la base de datos
+    const users = JSON.parse(localStorage.getItem("users_db") || "[]")
+    const userIndex = users.findIndex((u: any) => u.id === user.id)
+
+    if (userIndex !== -1) {
+      users[userIndex].favorites = updatedFavorites
+      localStorage.setItem("users_db", JSON.stringify(users))
+    }
+
+    // Actualizar sesión
+    localStorage.setItem("user_session", JSON.stringify(updatedUser))
   }
 
   // Función para añadir al historial
   const addToHistory = (mediaId: string) => {
     if (!user) return
 
-    userService.addToHistory(user.id, mediaId)
-
     // Actualizar estado local
-    setUser((prev) => {
-      if (!prev) return null
-      const currentHistory = prev.history || []
-      const updatedHistory = [mediaId, ...currentHistory.filter((id) => id !== mediaId)].slice(0, 100)
-      return { ...prev, history: updatedHistory }
-    })
+    const currentHistory = user.history || []
+    const updatedHistory = [mediaId, ...currentHistory.filter((id) => id !== mediaId)].slice(0, 100)
+    const updatedUser = { ...user, history: updatedHistory }
+    setUser(updatedUser)
+
+    // Actualizar en la base de datos
+    const users = JSON.parse(localStorage.getItem("users_db") || "[]")
+    const userIndex = users.findIndex((u: any) => u.id === user.id)
+
+    if (userIndex !== -1) {
+      users[userIndex].history = updatedHistory
+      localStorage.setItem("users_db", JSON.stringify(users))
+    }
+
+    // Actualizar sesión
+    localStorage.setItem("user_session", JSON.stringify(updatedUser))
   }
 
   // Función para obtener favoritos
