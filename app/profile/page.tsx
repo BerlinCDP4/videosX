@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { AlertCircle, Upload, LogOut, Home } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { MainNavigation } from "@/components/main-navigation"
-import ImageCropper from "@/components/image-cropper"
+import AdvancedImageCropper from "@/components/advanced-image-cropper"
 
 export default function ProfilePage() {
   const { user, isAuthenticated, updateProfile, logout } = useAuth()
@@ -176,7 +176,7 @@ export default function ProfilePage() {
           <h1 className="text-3xl font-bold mb-8 text-white">Mi Perfil</h1>
 
           {showCropper && tempImageUrl ? (
-            <ImageCropper imageUrl={tempImageUrl} onCrop={handleCroppedImage} onCancel={handleCancelCrop} />
+            <AdvancedImageCropper imageUrl={tempImageUrl} onCrop={handleCroppedImage} onCancel={handleCancelCrop} />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <Card className="md:col-span-2 bg-card border-muted">

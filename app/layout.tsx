@@ -25,6 +25,50 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              // Script para migrar datos antiguos al nuevo formato
+              (function() {
+                try {
+                  // Verificar si ya se ha realizado la migración
+                  if (localStorage.getItem('data_migration_completed')) return;
+                  
+                  // Migrar usuarios
+                  const oldUsers = localStorage.getItem('users_db');
+                  if (oldUsers) {
+                    localStorage.setItem('media_gallery_users', oldUsers);
+                  }
+                  
+                  // Migrar medios
+                  const oldMedia = localStorage.getItem('mediaItems');
+                  if (oldMedia) {
+                    localStorage.setItem('media_gallery_media_items', oldMedia);
+                  }
+                  
+                  // Migrar comentarios
+                  const oldComments = localStorage.getItem('shared_comments_db');
+                  if (oldComments) {
+                    localStorage.setItem('media_gallery_comments', oldComments);
+                  }
+                  
+                  // Migrar imágenes de perfil
+                  const oldProfileImages = localStorage.getItem('profile_images_db');
+                  if (oldProfileImages) {
+                    localStorage.setItem('media_gallery_profile_images', oldProfileImages);
+                  }
+                  
+                  // Marcar migración como completada
+                  localStorage.setItem('data_migration_completed', 'true');
+                  
+                  console.log('Migración de datos completada con éxito');
+                } catch (error) {
+                  console.error('Error durante la migración de datos:', error);
+                }
+              })();
+            `,
+          }}
+        />
       </head>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>

@@ -43,10 +43,22 @@ export default function ImageCategoryPage() {
         if (savedMedia) {
           try {
             const parsedMedia = JSON.parse(savedMedia) as MediaItem[]
+
+            // Depuración para ver qué categorías hay
+            console.log("Categorías disponibles:", [...new Set(parsedMedia.map((item) => item.category))])
+            console.log("Buscando categoría:", category.toLowerCase())
+
             // Filtrar por tipo imagen y categoría (insensible a mayúsculas/minúsculas)
-            const filteredMedia = parsedMedia.filter(
-              (item) => item.type === "image" && item.category.toLowerCase() === category.toLowerCase(),
-            )
+            const filteredMedia = parsedMedia.filter((item) => {
+              const isImage = item.type === "image"
+              const categoryMatch = item.category.toLowerCase() === category.toLowerCase()
+              console.log(
+                `Item ${item.id}: type=${item.type}, category=${item.category}, matches=${isImage && categoryMatch}`,
+              )
+              return isImage && categoryMatch
+            })
+
+            console.log("Imágenes encontradas:", filteredMedia.length)
             setMediaItems(filteredMedia)
           } catch (parseError) {
             console.error("Error al parsear los datos guardados:", parseError)

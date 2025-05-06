@@ -11,13 +11,12 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/components/ui/use-toast"
-import { X } from "lucide-react"
+import { X, Home } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import ThumbnailGenerator from "@/components/thumbnail-generator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
-import { mediaService } from "@/lib/db-service"
 
 // Categorías disponibles
 const mediaCategories = ["Amateur", "Famosas", "Monica", "Estudio"]
@@ -181,14 +180,16 @@ export default function UploadPage() {
         title: title || "Sin título",
         url: url,
         type: type as "image" | "video",
-        category: category.toLowerCase(),
+        category: category.toLowerCase(), // Guardar en minúsculas para consistencia
         thumbnail: customThumbnail || undefined,
         createdAt: new Date().toISOString(),
         userId: user.id,
       }
 
-      // Guardar en la base de datos
-      mediaService.add(newMedia)
+      // Guardar en localStorage
+      const savedMedia = localStorage.getItem("mediaItems")
+      const mediaItems = savedMedia ? JSON.parse(savedMedia) : []
+      localStorage.setItem("mediaItems", JSON.stringify([newMedia, ...mediaItems]))
 
       toast({
         title: "Éxito",
@@ -230,6 +231,11 @@ export default function UploadPage() {
     setCustomThumbnail(thumbnailUrl)
   }
 
+  // Función para volver al inicio
+  const handleGoHome = () => {
+    router.push("/")
+  }
+
   if (!isAuthenticated) {
     return null // No renderizar nada mientras redirige
   }
@@ -242,6 +248,18 @@ export default function UploadPage() {
       {/* Main Content */}
       <main className="flex-1 min-h-screen">
         <div className="container mx-auto px-4 py-8">
+          {/* Botón de inicio para móvil */}
+          <div className="md:hidden flex justify-between items-center mb-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleGoHome}
+              className="bg-accent hover:bg-accent/90 text-white border-none"
+            >
+              <Home className="h-4 w-4 mr-2" /> Inicio
+            </Button>
+          </div>
+
           <div className="flex justify-between items-center mb-8">
             <GalleryHeader title="Subir Medio" subtitle="Sube tus imágenes y videos favoritos" />
             <Button

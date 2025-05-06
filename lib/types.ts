@@ -1,21 +1,39 @@
+// Tipos para la aplicación
+
+// Tipo para elementos multimedia
 export interface MediaItem {
-  id: string
+  id: number
   title: string
   url: string
   type: "image" | "video"
   category: string
   thumbnail?: string
   createdAt: string
-  userId: string // ID del usuario que subió el medio
+  userId: number
+  userName?: string
+  viewedAt?: string
 }
 
+// Tipo para comentarios
+export interface Comment {
+  id: number
+  mediaId: number
+  userId: number
+  userName: string
+  userAvatar?: string
+  text: string
+  createdAt: string
+}
+
+// Tipo para usuarios
 export interface User {
-  id: string
+  id: number
   name: string
   email: string
   image?: string
-  favorites?: string[] // IDs de medios favoritos
-  history?: string[] // IDs de medios vistos
+  favorites?: number[]
+  history?: number[]
+  createdAt: string
 }
 
 export interface UserContext {
@@ -35,17 +53,6 @@ export interface RegisterData {
   email: string
   password: string
   name: string
-}
-
-// Tipo para comentarios
-export interface Comment {
-  id: string
-  mediaId: string
-  userId: string
-  userName: string
-  userAvatar?: string
-  text: string
-  createdAt: string
 }
 
 export interface UserProfile {

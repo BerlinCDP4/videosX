@@ -31,6 +31,13 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
+      // Validar campos
+      if (!email.trim() || !password.trim()) {
+        setError("Por favor, completa todos los campos")
+        setIsLoading(false)
+        return
+      }
+
       const success = await login(email, password, rememberMe)
 
       if (success) {
@@ -39,7 +46,8 @@ export default function LoginPage() {
         setError("Email o contraseña incorrectos")
       }
     } catch (err) {
-      setError("Error al iniciar sesión")
+      console.error("Error al iniciar sesión:", err)
+      setError("Error al iniciar sesión. Por favor, intenta de nuevo.")
     } finally {
       setIsLoading(false)
     }

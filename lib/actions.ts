@@ -1,439 +1,790 @@
 "use server"
 
-import type { MediaItem, Comment } from "./types"
+import { userService } from "./db-service"
+import type { UserProfile } from "./types"
+import { executeQuery } from "./db"
+import { uploadBase64Image } from "./blob-service"
 import { revalidatePath } from "next/cache"
+import type { MediaItem, Comment, User } from "./types"
 
-// Base de datos simulada para almacenar medios
-// En una implementación real, esto sería una base de datos persistente
-let mediaDatabase: MediaItem[] = []
+// Funciones de autenticación y usuarios
 
-// Base de datos simulada para comentarios
-let commentsDatabase: Comment[] = []
-
-// Base de datos simulada para usuarios
-// Añadimos un usuario de prueba para facilitar el inicio de sesión
-const userDatabase: any[] = [
-  {
-    id: "1",
-    email: "usuario@ejemplo.com",
-    password: "123456", // En producción, esto debería ser un hash
-    name: "Usuario de Prueba",
-    username: "usuario_test",
-    profilePicture: "/default-avatar.png",
-    createdAt: new Date().toISOString(),
-    provider: "email",
-  },
-]
-
-// Función para cargar medios desde localStorage (se ejecuta en el cliente)
-export async function getMedia(): Promise<MediaItem[]> {
-  // Simular retraso de API
-  await new Promise((resolve) => setTimeout(resolve, 500))
-
-  // Ordenar por más reciente primero
-  return [...mediaDatabase].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-}
-
-export async function getMediaByType(type: "image" | "video"): Promise<MediaItem[]> {
-  // Obtener medios por tipo
-  const media = await getMedia()
-  return media.filter((item) => item.type === type)
-}
-
-export async function getMediaByCategory(category: string): Promise<MediaItem[]> {
-  // Obtener medios por categoría
-  const media = await getMedia()
-  return media.filter((item) => item.category === category)
-}
-
-export async function getFavorites(favoriteIds: string[]): Promise<MediaItem[]> {
-  // Obtener medios favoritos
-  const media = await getMedia()
-  return media.filter((item) => favoriteIds.includes(item.id))
-}
-
-export async function getRecentMedia(limit = 10): Promise<MediaItem[]> {
-  // Obtener medios recientes
-  const media = await getMedia()
-  return media.slice(0, limit)
-}
-
-// Función para sincronizar la base de datos con localStorage
-export async function syncMediaDatabase(items: MediaItem[]): Promise<void> {
+export async function loginUser(formData: FormData): Promise<{ success: boolean; user?: User; error?: string }> {
   try {
-    if (!items || !Array.isArray(items)) {
-      console.error("Los datos proporcionados no son un array válido")
-      mediaDatabase = []
-    } else {
-      mediaDatabase = items
-    }
-    revalidatePath("/")
-  } catch (error) {
-    console.error("Error al sincronizar la base de datos:", error)
-    // Si hay un error, inicializar con un array vacío
-    mediaDatabase = []
-  }
-}
+    const email = formData.get("email") as string
+    const password = formData.get("password") as string
 
-// Mejorar la función uploadMedia para manejar mejor los errores
-export async function uploadMedia(
-  url: string,
-  type: string,
-  title: string,
-  category: string,
-  userId: string,
-  customThumbnail?: string,
-): Promise<MediaItem> {
-  // Validar URL
-  try {
-    new URL(url)
-  } catch (e) {
-    throw new Error("URL inválida")
-  }
-
-  // Validar tipo
-  if (type !== "image" && type !== "video") {
-    throw new Error("Tipo de medio inválido")
-  }
-
-  // Validar que el usuario esté autenticado
-  if (!userId) {
-    throw new Error("Debes iniciar sesión para subir medios")
-  }
-
-  let thumbnail: string | undefined
-
-  // Procesar según el tipo
-  if (type === "video") {
-    // Si hay una miniatura personalizada, usarla
-    if (customThumbnail) {
-      thumbnail = customThumbnail
-    } else {
-      // Para YouTube
-      if (url.includes("youtube.com") || url.includes("youtu.be")) {
-        let videoId = null
-
-        try {
-          if (url.includes("youtu.be")) {
-            videoId = url.split("/").pop()?.split("?")[0]
-          } else if (url.includes("v=")) {
-            try {
-              videoId = new URL(url).searchParams.get("v")
-            } catch (e) {
-              // Si hay un error al parsear la URL, intentar extraer el ID manualmente
-              const match = url.match(/[?&]v=([^&]+)/)
-              if (match) videoId = match[1]
-            }
-          }
-
-          if (videoId) {
-            thumbnail = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
-          } else {
-            thumbnail = "/video-thumbnail.png"
-          }
-        } catch (error) {
-          console.error("Error al procesar URL de YouTube:", error)
-          thumbnail = "/video-thumbnail.png"
-        }
-      }
-      // Para todos los demás videos
-      else {
-        thumbnail = "/video-thumbnail.png"
-      }
-    }
-  }
-
-  // Crear nuevo elemento de medio
-  const newMedia: MediaItem = {
-    id: Date.now().toString(),
-    title: title || "Sin título",
-    url: url,
-    type: type as "image" | "video",
-    category: category.toLowerCase(),
-    thumbnail,
-    createdAt: new Date().toISOString(),
-    userId: userId, // Guardar el ID del usuario que subió el medio
-  }
-
-  // Añadir a la base de datos
-  mediaDatabase = [newMedia, ...mediaDatabase]
-
-  // Revalidar la ruta para actualizar la UI
-  try {
-    revalidatePath("/")
-    revalidatePath("/upload")
-    revalidatePath("/images")
-    revalidatePath("/videos")
-    revalidatePath("/favorites")
-    revalidatePath("/recent")
-  } catch (error) {
-    console.error("Error al revalidar rutas:", error)
-  }
-
-  return newMedia
-}
-
-// Función para eliminar un medio
-export async function deleteMedia(mediaId: string, userId: string): Promise<boolean> {
-  // Buscar el medio en la base de datos
-  const mediaIndex = mediaDatabase.findIndex((item) => item.id === mediaId)
-
-  // Si no se encuentra el medio, retornar false
-  if (mediaIndex === -1) {
-    return false
-  }
-
-  // Verificar que el usuario que intenta eliminar es el propietario
-  if (mediaDatabase[mediaIndex].userId !== userId) {
-    return false
-  }
-
-  // Eliminar el medio de la base de datos
-  mediaDatabase.splice(mediaIndex, 1)
-
-  // Revalidar la ruta para actualizar la UI
-  revalidatePath("/")
-  revalidatePath("/images")
-  revalidatePath("/videos")
-  revalidatePath("/favorites")
-  revalidatePath("/recent")
-
-  return true
-}
-
-// Funciones para la autenticación y gestión de usuarios
-
-// Registrar un nuevo usuario
-export async function registerUser(userData: {
-  email: string
-  password: string
-  name: string
-  username: string
-}): Promise<{ success: boolean; userId?: string; error?: string }> {
-  try {
-    // Validar datos
-    if (!userData.email || !userData.password || !userData.name || !userData.username) {
-      return { success: false, error: "Todos los campos son obligatorios" }
+    if (!email || !password) {
+      return { success: false, error: "Email y contraseña son requeridos" }
     }
 
-    // Verificar si el email ya está registrado
-    const existingUser = userDatabase.find((user) => user.email === userData.email)
-    if (existingUser) {
-      return { success: false, error: "El email ya está registrado" }
-    }
+    const result = await executeQuery<any[]>(
+      `
+      SELECT id, name, email, image_url as image, created_at as "createdAt"
+      FROM users 
+      WHERE email = $1 AND password = $2
+      `,
+      [email.toLowerCase(), password],
+    )
 
-    // Verificar si el nombre de usuario ya está en uso
-    const existingUsername = userDatabase.find((user) => user.username === userData.username)
-    if (existingUsername) {
-      return { success: false, error: "El nombre de usuario ya está en uso" }
-    }
-
-    // En una implementación real, aquí se haría hash de la contraseña
-    // Por simplicidad, no lo hacemos en este ejemplo
-
-    // Crear nuevo usuario
-    const newUser = {
-      id: Date.now().toString(),
-      email: userData.email,
-      password: userData.password, // En producción, esto debería ser un hash
-      name: userData.name,
-      username: userData.username,
-      profilePicture: "/default-avatar.png",
-      createdAt: new Date().toISOString(),
-      provider: "email",
-    }
-
-    // Añadir a la base de datos
-    userDatabase.push(newUser)
-
-    return { success: true, userId: newUser.id }
-  } catch (error) {
-    console.error("Error al registrar usuario:", error)
-    return { success: false, error: "Error al registrar usuario" }
-  }
-}
-
-// Iniciar sesión
-export async function loginUser(
-  email: string,
-  password: string,
-): Promise<{ success: boolean; userId?: string; error?: string }> {
-  try {
-    // Buscar usuario por email
-    const user = userDatabase.find((u) => u.email === email)
-
-    // Si no existe el usuario o la contraseña no coincide
-    if (!user || user.password !== password) {
+    if (result.length === 0) {
       return { success: false, error: "Email o contraseña incorrectos" }
     }
 
-    return { success: true, userId: user.id }
+    const user = result[0]
+
+    // Obtener favoritos del usuario
+    const favorites = await executeQuery<any[]>(`SELECT media_id FROM favorites WHERE user_id = $1`, [user.id])
+
+    // Obtener historial del usuario
+    const history = await executeQuery<any[]>(
+      `SELECT media_id FROM history WHERE user_id = $1 ORDER BY viewed_at DESC`,
+      [user.id],
+    )
+
+    // Añadir favoritos e historial al usuario
+    user.favorites = favorites.map((fav) => fav.media_id)
+    user.history = history.map((item) => item.media_id)
+
+    return { success: true, user }
   } catch (error) {
     console.error("Error al iniciar sesión:", error)
     return { success: false, error: "Error al iniciar sesión" }
   }
 }
 
-// Obtener datos de usuario
-export async function getUserData(userId: string): Promise<any> {
-  const user = userDatabase.find((u) => u.id === userId)
+export async function registerUser(formData: FormData): Promise<{ success: boolean; user?: User; error?: string }> {
+  try {
+    const name = formData.get("name") as string
+    const email = formData.get("email") as string
+    const password = formData.get("password") as string
 
-  if (!user) {
-    return null
+    if (!name || !email || !password) {
+      return { success: false, error: "Todos los campos son requeridos" }
+    }
+
+    // Verificar si el email ya está registrado
+    const existingUser = await executeQuery<any[]>(`SELECT id FROM users WHERE email = $1`, [email.toLowerCase()])
+
+    if (existingUser.length > 0) {
+      return { success: false, error: "El email ya está registrado" }
+    }
+
+    // Crear nuevo usuario
+    const result = await executeQuery<any[]>(
+      `
+      INSERT INTO users (name, email, password) 
+      VALUES ($1, $2, $3) 
+      RETURNING id, name, email, image_url as image, created_at as "createdAt"
+      `,
+      [name, email.toLowerCase(), password],
+    )
+
+    if (result.length === 0) {
+      return { success: false, error: "Error al registrar usuario" }
+    }
+
+    const user = result[0]
+    user.favorites = []
+    user.history = []
+
+    return { success: true, user }
+  } catch (error) {
+    console.error("Error al registrar usuario:", error)
+    return { success: false, error: "Error al registrar usuario" }
   }
-
-  // No devolver la contraseña
-  const { password, ...userData } = user
-  return userData
 }
 
-// Actualizar perfil de usuario
-export async function updateUserProfile(
-  userId: string,
-  profileData: {
-    name?: string
-    username?: string
-    profilePicture?: string
-  },
-): Promise<{ success: boolean; error?: string }> {
+export async function getUserData(userId: string): Promise<UserProfile | null> {
   try {
-    // Buscar usuario
-    const userIndex = userDatabase.findIndex((u) => u.id === userId)
+    const user = userService.getById(userId)
+    return user
+  } catch (error) {
+    console.error("Error al obtener datos de usuario:", error)
+    return null
+  }
+}
 
-    if (userIndex === -1) {
+export async function socialLogin(
+  provider: string,
+  token: string,
+): Promise<{ success: boolean; userId?: string; error?: string }> {
+  // This is a mock implementation. In a real application, this function would:
+  // 1. Verify the token with the social provider (e.g., Google, Facebook).
+  // 2. Check if the user exists in the database.
+  // 3. If the user exists, log them in.
+  // 4. If the user doesn't exist, create a new user account.
+  // 5. Return the user ID.
+
+  // For this example, we'll just return a mock user ID.
+  console.log(`Simulating social login with ${provider} and token ${token}`)
+
+  // Check if a user with this provider already exists (e.g., by email)
+  let user = userService.getAll().find((u) => u.email === `mock_${provider}_user@example.com`)
+
+  if (!user) {
+    // Create a new user
+    user = userService.register({
+      name: `Mock ${provider} User`,
+      email: `mock_${provider}_user@example.com`,
+      password: "password", // In real app, generate a random password
+    })
+  }
+
+  if (user) {
+    return { success: true, userId: user.id }
+  } else {
+    return { success: false, error: `Could not create user with ${provider}` }
+  }
+}
+
+export async function updateUserProfile(
+  userId: number,
+  formData: FormData,
+): Promise<{ success: boolean; user?: User; error?: string }> {
+  try {
+    const name = formData.get("name") as string
+    const email = formData.get("email") as string
+    const imageData = formData.get("image") as string
+
+    // Construir la consulta de actualización dinámicamente
+    const updateFields = []
+    const params = []
+    let paramIndex = 1
+
+    if (name) {
+      updateFields.push(`name = $${paramIndex}`)
+      params.push(name)
+      paramIndex++
+    }
+
+    if (email) {
+      // Verificar si el email ya está en uso
+      const existingUser = await executeQuery<any[]>(`SELECT id FROM users WHERE email = $1 AND id != $2`, [
+        email.toLowerCase(),
+        userId,
+      ])
+
+      if (existingUser.length > 0) {
+        return { success: false, error: "El email ya está en uso" }
+      }
+
+      updateFields.push(`email = $${paramIndex}`)
+      params.push(email.toLowerCase())
+      paramIndex++
+    }
+
+    if (imageData && imageData.startsWith("data:image")) {
+      // Subir imagen a Vercel Blob
+      const imageUrl = await uploadBase64Image(imageData, "profiles")
+
+      updateFields.push(`image_url = $${paramIndex}`)
+      params.push(imageUrl)
+      paramIndex++
+    }
+
+    if (updateFields.length === 0) {
+      // No hay campos para actualizar
+      const user = await executeQuery<any[]>(
+        `
+        SELECT id, name, email, image_url as image, created_at as "createdAt"
+        FROM users 
+        WHERE id = $1
+        `,
+        [userId],
+      )
+
+      if (user.length === 0) {
+        return { success: false, error: "Usuario no encontrado" }
+      }
+
+      return { success: true, user: user[0] }
+    }
+
+    // Añadir el ID como último parámetro
+    params.push(userId)
+
+    const result = await executeQuery<any[]>(
+      `
+      UPDATE users 
+      SET ${updateFields.join(", ")} 
+      WHERE id = $${paramIndex} 
+      RETURNING id, name, email, image_url as image, created_at as "createdAt"
+      `,
+      params,
+    )
+
+    if (result.length === 0) {
       return { success: false, error: "Usuario no encontrado" }
     }
 
-    // Verificar si el nombre de usuario ya está en uso (si se está cambiando)
-    if (profileData.username && profileData.username !== userDatabase[userIndex].username) {
-      const existingUsername = userDatabase.find((user) => user.username === profileData.username)
-      if (existingUsername) {
-        return { success: false, error: "El nombre de usuario ya está en uso" }
-      }
-    }
+    const user = result[0]
 
-    // Actualizar datos
-    userDatabase[userIndex] = {
-      ...userDatabase[userIndex],
-      ...profileData,
-    }
+    // Obtener favoritos del usuario
+    const favorites = await executeQuery<any[]>(`SELECT media_id FROM favorites WHERE user_id = $1`, [user.id])
 
-    return { success: true }
+    // Obtener historial del usuario
+    const history = await executeQuery<any[]>(
+      `SELECT media_id FROM history WHERE user_id = $1 ORDER BY viewed_at DESC`,
+      [user.id],
+    )
+
+    // Añadir favoritos e historial al usuario
+    user.favorites = favorites.map((fav) => fav.media_id)
+    user.history = history.map((item) => item.media_id)
+
+    return { success: true, user }
   } catch (error) {
     console.error("Error al actualizar perfil:", error)
     return { success: false, error: "Error al actualizar perfil" }
   }
 }
 
-// Social Login
-export async function socialLogin(
-  provider: string,
-  token: string,
-): Promise<{ success: boolean; userId?: string; error?: string }> {
+// Funciones para medios
+
+export async function getMedia(): Promise<MediaItem[]> {
   try {
-    // En una implementación real, aquí se verificaría el token con el proveedor
-    // y se obtendrían los datos del usuario
+    const media = await executeQuery<any[]>(
+      `
+      SELECT 
+        m.id, 
+        m.title, 
+        m.url, 
+        m.type, 
+        m.category, 
+        m.thumbnail_url as thumbnail, 
+        m.created_at as "createdAt", 
+        m.user_id as "userId",
+        u.name as "userName"
+      FROM media m
+      JOIN users u ON m.user_id = u.id
+      ORDER BY m.created_at DESC
+      `,
+    )
 
-    // Simulación de un usuario existente o nuevo
-    let user = userDatabase.find((u) => u.email === `social_${provider}@example.com`)
+    return media.map((item) => ({
+      id: item.id,
+      title: item.title,
+      url: item.url,
+      type: item.type,
+      category: item.category,
+      thumbnail: item.thumbnail,
+      createdAt: item.createdAt,
+      userId: item.userId,
+      userName: item.userName,
+    }))
+  } catch (error) {
+    console.error("Error al obtener medios:", error)
+    return []
+  }
+}
 
-    if (!user) {
-      // Crear un nuevo usuario simulado
-      user = {
-        id: Date.now().toString(),
-        email: `social_${provider}@example.com`,
-        password: "social_login", // No se usa, pero se requiere
-        name: `Usuario Social ${provider}`,
-        username: `social_${provider}`,
-        profilePicture: "/default-avatar.png",
-        createdAt: new Date().toISOString(),
-        provider: provider,
+export async function getMediaByType(type: "image" | "video"): Promise<MediaItem[]> {
+  try {
+    const media = await executeQuery<any[]>(
+      `
+      SELECT 
+        m.id, 
+        m.title, 
+        m.url, 
+        m.type, 
+        m.category, 
+        m.thumbnail_url as thumbnail, 
+        m.created_at as "createdAt", 
+        m.user_id as "userId",
+        u.name as "userName"
+      FROM media m
+      JOIN users u ON m.user_id = u.id
+      WHERE m.type = $1
+      ORDER BY m.created_at DESC
+      `,
+      [type],
+    )
+
+    return media.map((item) => ({
+      id: item.id,
+      title: item.title,
+      url: item.url,
+      type: item.type,
+      category: item.category,
+      thumbnail: item.thumbnail,
+      createdAt: item.createdAt,
+      userId: item.userId,
+      userName: item.userName,
+    }))
+  } catch (error) {
+    console.error(`Error al obtener medios de tipo ${type}:`, error)
+    return []
+  }
+}
+
+export async function getMediaByCategory(category: string): Promise<MediaItem[]> {
+  try {
+    const media = await executeQuery<any[]>(
+      `
+      SELECT 
+        m.id, 
+        m.title, 
+        m.url, 
+        m.type, 
+        m.category, 
+        m.thumbnail_url as thumbnail, 
+        m.created_at as "createdAt", 
+        m.user_id as "userId",
+        u.name as "userName"
+      FROM media m
+      JOIN users u ON m.user_id = u.id
+      WHERE LOWER(m.category) = LOWER($1)
+      ORDER BY m.created_at DESC
+      `,
+      [category],
+    )
+
+    return media.map((item) => ({
+      id: item.id,
+      title: item.title,
+      url: item.url,
+      type: item.type,
+      category: item.category,
+      thumbnail: item.thumbnail,
+      createdAt: item.createdAt,
+      userId: item.userId,
+      userName: item.userName,
+    }))
+  } catch (error) {
+    console.error(`Error al obtener medios de categoría ${category}:`, error)
+    return []
+  }
+}
+
+export async function getFavorites(userId: number): Promise<MediaItem[]> {
+  try {
+    const media = await executeQuery<any[]>(
+      `
+      SELECT 
+        m.id, 
+        m.title, 
+        m.url, 
+        m.type, 
+        m.category, 
+        m.thumbnail_url as thumbnail, 
+        m.created_at as "createdAt", 
+        m.user_id as "userId",
+        u.name as "userName"
+      FROM media m
+      JOIN users u ON m.user_id = u.id
+      JOIN favorites f ON m.id = f.media_id
+      WHERE f.user_id = $1
+      ORDER BY f.created_at DESC
+      `,
+      [userId],
+    )
+
+    return media.map((item) => ({
+      id: item.id,
+      title: item.title,
+      url: item.url,
+      type: item.type,
+      category: item.category,
+      thumbnail: item.thumbnail,
+      createdAt: item.createdAt,
+      userId: item.userId,
+      userName: item.userName,
+    }))
+  } catch (error) {
+    console.error(`Error al obtener favoritos del usuario ${userId}:`, error)
+    return []
+  }
+}
+
+export async function getHistory(userId: number): Promise<MediaItem[]> {
+  try {
+    const media = await executeQuery<any[]>(
+      `
+      SELECT 
+        m.id, 
+        m.title, 
+        m.url, 
+        m.type, 
+        m.category, 
+        m.thumbnail_url as thumbnail, 
+        m.created_at as "createdAt", 
+        m.user_id as "userId",
+        u.name as "userName",
+        h.viewed_at as "viewedAt"
+      FROM media m
+      JOIN users u ON m.user_id = u.id
+      JOIN history h ON m.id = h.media_id
+      WHERE h.user_id = $1
+      ORDER BY h.viewed_at DESC
+      `,
+      [userId],
+    )
+
+    return media.map((item) => ({
+      id: item.id,
+      title: item.title,
+      url: item.url,
+      type: item.type,
+      category: item.category,
+      thumbnail: item.thumbnail,
+      createdAt: item.createdAt,
+      userId: item.userId,
+      userName: item.userName,
+      viewedAt: item.viewedAt,
+    }))
+  } catch (error) {
+    console.error(`Error al obtener historial del usuario ${userId}:`, error)
+    return []
+  }
+}
+
+export async function getRecentMedia(limit = 10): Promise<MediaItem[]> {
+  try {
+    const media = await executeQuery<any[]>(
+      `
+      SELECT 
+        m.id, 
+        m.title, 
+        m.url, 
+        m.type, 
+        m.category, 
+        m.thumbnail_url as thumbnail, 
+        m.created_at as "createdAt", 
+        m.user_id as "userId",
+        u.name as "userName"
+      FROM media m
+      JOIN users u ON m.user_id = u.id
+      ORDER BY m.created_at DESC
+      LIMIT $1
+      `,
+      [limit],
+    )
+
+    return media.map((item) => ({
+      id: item.id,
+      title: item.title,
+      url: item.url,
+      type: item.type,
+      category: item.category,
+      thumbnail: item.thumbnail,
+      createdAt: item.createdAt,
+      userId: item.userId,
+      userName: item.userName,
+    }))
+  } catch (error) {
+    console.error("Error al obtener medios recientes:", error)
+    return []
+  }
+}
+
+export async function uploadMedia(
+  formData: FormData,
+): Promise<{ success: boolean; media?: MediaItem; error?: string }> {
+  try {
+    const url = formData.get("url") as string
+    const type = formData.get("type") as string
+    const title = formData.get("title") as string
+    const category = formData.get("category") as string
+    const userId = Number.parseInt(formData.get("userId") as string)
+    const customThumbnail = formData.get("customThumbnail") as string
+
+    // Validar datos
+    if (!url || !type || !title || !category || !userId) {
+      return { success: false, error: "Todos los campos son requeridos" }
+    }
+
+    // Validar URL
+    try {
+      new URL(url)
+    } catch (e) {
+      return { success: false, error: "URL inválida" }
+    }
+
+    // Validar tipo
+    if (type !== "image" && type !== "video") {
+      return { success: false, error: "Tipo de medio inválido" }
+    }
+
+    let thumbnailUrl: string | null = null
+
+    // Procesar según el tipo
+    if (type === "video") {
+      // Si hay una miniatura personalizada, subirla a Vercel Blob
+      if (customThumbnail && customThumbnail.startsWith("data:image")) {
+        thumbnailUrl = await uploadBase64Image(customThumbnail, "thumbnails")
+      } else {
+        // Para YouTube
+        if (url.includes("youtube.com") || url.includes("youtu.be")) {
+          let videoId = null
+
+          try {
+            if (url.includes("youtu.be")) {
+              videoId = url.split("/").pop()?.split("?")[0]
+            } else if (url.includes("v=")) {
+              try {
+                videoId = new URL(url).searchParams.get("v")
+              } catch (e) {
+                // Si hay un error al parsear la URL, intentar extraer el ID manualmente
+                const match = url.match(/[?&]v=([^&]+)/)
+                if (match) videoId = match[1]
+              }
+            }
+
+            if (videoId) {
+              thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
+            } else {
+              thumbnailUrl = "/video-thumbnail.png"
+            }
+          } catch (error) {
+            console.error("Error al procesar URL de YouTube:", error)
+            thumbnailUrl = "/video-thumbnail.png"
+          }
+        }
+        // Para todos los demás videos
+        else {
+          thumbnailUrl = "/video-thumbnail.png"
+        }
       }
-      userDatabase.push(user)
     }
 
-    return { success: true, userId: user.id }
+    // Crear nuevo elemento de medio
+    const result = await executeQuery<any[]>(
+      `
+      INSERT INTO media (title, url, type, category, thumbnail_url, user_id) 
+      VALUES ($1, $2, $3, $4, $5, $6) 
+      RETURNING id, title, url, type, category, thumbnail_url as thumbnail, created_at as "createdAt", user_id as "userId"
+      `,
+      [title, url, type, category.toLowerCase(), thumbnailUrl, userId],
+    )
+
+    if (result.length === 0) {
+      return { success: false, error: "Error al crear medio" }
+    }
+
+    const media = result[0]
+
+    // Obtener nombre de usuario
+    const userResult = await executeQuery<any[]>(`SELECT name FROM users WHERE id = $1`, [userId])
+
+    if (userResult.length > 0) {
+      media.userName = userResult[0].name
+    }
+
+    // Revalidar rutas
+    revalidatePath("/")
+    revalidatePath("/upload")
+    revalidatePath("/images")
+    revalidatePath("/videos")
+    revalidatePath("/favorites")
+    revalidatePath("/recent")
+    revalidatePath(`/videos/${category.toLowerCase()}`)
+    revalidatePath(`/images/${category.toLowerCase()}`)
+
+    return { success: true, media }
   } catch (error) {
-    console.error(`Error al iniciar sesión con ${provider}:`, error)
-    return { success: false, error: `Error al iniciar sesión con ${provider}` }
+    console.error("Error al subir medio:", error)
+    return { success: false, error: "Error al subir medio" }
   }
 }
 
-// Nuevas funciones para comentarios
-
-// Obtener comentarios de un medio
-export async function getComments(mediaId: string): Promise<Comment[]> {
-  // Simular retraso de API
-  await new Promise((resolve) => setTimeout(resolve, 300))
-
-  // Filtrar comentarios por mediaId y ordenar por más reciente primero
-  return [...commentsDatabase]
-    .filter((comment) => comment.mediaId === mediaId)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-}
-
-// Añadir un comentario
-export async function addComment(
-  mediaId: string,
-  userId: string,
-  userName: string,
-  text: string,
-  userAvatar?: string,
-): Promise<Comment> {
-  // Validar datos
-  if (!mediaId || !userId || !text.trim()) {
-    throw new Error("Datos de comentario incompletos")
-  }
-
-  // Crear nuevo comentario
-  const newComment: Comment = {
-    id: Date.now().toString(),
-    mediaId,
-    userId,
-    userName,
-    userAvatar,
-    text: text.trim(),
-    createdAt: new Date().toISOString(),
-  }
-
-  // Añadir a la base de datos
-  commentsDatabase = [newComment, ...commentsDatabase]
-
-  return newComment
-}
-
-// Eliminar un comentario
-export async function deleteComment(commentId: string, userId: string): Promise<boolean> {
-  // Buscar el comentario en la base de datos
-  const commentIndex = commentsDatabase.findIndex((comment) => comment.id === commentId)
-
-  // Si no se encuentra el comentario, retornar false
-  if (commentIndex === -1) {
-    return false
-  }
-
-  // Verificar que el usuario que intenta eliminar es el autor
-  if (commentsDatabase[commentIndex].userId !== userId) {
-    return false
-  }
-
-  // Eliminar el comentario de la base de datos
-  commentsDatabase.splice(commentIndex, 1)
-
-  return true
-}
-
-// Sincronizar comentarios con localStorage
-export async function syncCommentsDatabase(comments: Comment[]): Promise<void> {
+export async function deleteMedia(mediaId: number, userId: number): Promise<{ success: boolean; error?: string }> {
   try {
-    if (!comments || !Array.isArray(comments)) {
-      console.error("Los datos de comentarios no son un array válido")
-      commentsDatabase = []
-    } else {
-      commentsDatabase = comments
+    // Verificar que el usuario es el propietario
+    const media = await executeQuery<any[]>(`SELECT user_id FROM media WHERE id = $1`, [mediaId])
+
+    if (media.length === 0) {
+      return { success: false, error: "Medio no encontrado" }
     }
+
+    if (media[0].user_id !== userId) {
+      return { success: false, error: "No tienes permiso para eliminar este medio" }
+    }
+
+    // Eliminar el medio
+    await executeQuery(`DELETE FROM media WHERE id = $1`, [mediaId])
+
+    // Revalidar rutas
+    revalidatePath("/")
+    revalidatePath("/images")
+    revalidatePath("/videos")
+    revalidatePath("/favorites")
+    revalidatePath("/recent")
+
+    return { success: true }
   } catch (error) {
-    console.error("Error al sincronizar la base de datos de comentarios:", error)
-    commentsDatabase = []
+    console.error("Error al eliminar medio:", error)
+    return { success: false, error: "Error al eliminar medio" }
+  }
+}
+
+// Funciones para favoritos
+
+export async function addToFavorites(userId: number, mediaId: number): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Verificar si ya existe en favoritos
+    const existingFavorite = await executeQuery<any[]>(
+      `SELECT id FROM favorites WHERE user_id = $1 AND media_id = $2`,
+      [userId, mediaId],
+    )
+
+    if (existingFavorite.length > 0) {
+      return { success: true } // Ya está en favoritos
+    }
+
+    // Añadir a favoritos
+    await executeQuery(`INSERT INTO favorites (user_id, media_id) VALUES ($1, $2)`, [userId, mediaId])
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error al añadir a favoritos:", error)
+    return { success: false, error: "Error al añadir a favoritos" }
+  }
+}
+
+export async function removeFromFavorites(
+  userId: number,
+  mediaId: number,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await executeQuery(`DELETE FROM favorites WHERE user_id = $1 AND media_id = $2`, [userId, mediaId])
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error al eliminar de favoritos:", error)
+    return { success: false, error: "Error al eliminar de favoritos" }
+  }
+}
+
+// Funciones para historial
+
+export async function addToHistory(userId: number, mediaId: number): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Verificar si ya existe en el historial
+    const existingHistory = await executeQuery<any[]>(`SELECT id FROM history WHERE user_id = $1 AND media_id = $2`, [
+      userId,
+      mediaId,
+    ])
+
+    if (existingHistory.length > 0) {
+      // Actualizar la fecha de visualización
+      await executeQuery(`UPDATE history SET viewed_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND media_id = $2`, [
+        userId,
+        mediaId,
+      ])
+    } else {
+      // Añadir al historial
+      await executeQuery(`INSERT INTO history (user_id, media_id) VALUES ($1, $2)`, [userId, mediaId])
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error al añadir al historial:", error)
+    return { success: false, error: "Error al añadir al historial" }
+  }
+}
+
+// Funciones para comentarios
+
+export async function getComments(mediaId: number): Promise<Comment[]> {
+  try {
+    const comments = await executeQuery<any[]>(
+      `
+      SELECT 
+        c.id, 
+        c.media_id as "mediaId", 
+        c.user_id as "userId", 
+        u.name as "userName", 
+        u.image_url as "userAvatar", 
+        c.text, 
+        c.created_at as "createdAt"
+      FROM comments c
+      JOIN users u ON c.user_id = u.id
+      WHERE c.media_id = $1
+      ORDER BY c.created_at DESC
+      `,
+      [mediaId],
+    )
+
+    return comments.map((comment) => ({
+      id: comment.id,
+      mediaId: comment.mediaId,
+      userId: comment.userId,
+      userName: comment.userName,
+      userAvatar: comment.userAvatar,
+      text: comment.text,
+      createdAt: comment.createdAt,
+    }))
+  } catch (error) {
+    console.error(`Error al obtener comentarios del medio ${mediaId}:`, error)
+    return []
+  }
+}
+
+export async function addComment(formData: FormData): Promise<{ success: boolean; comment?: Comment; error?: string }> {
+  try {
+    const mediaId = Number.parseInt(formData.get("mediaId") as string)
+    const userId = Number.parseInt(formData.get("userId") as string)
+    const text = formData.get("text") as string
+
+    if (!mediaId || !userId || !text.trim()) {
+      return { success: false, error: "Todos los campos son requeridos" }
+    }
+
+    // Obtener información del usuario
+    const userResult = await executeQuery<any[]>(`SELECT name, image_url FROM users WHERE id = $1`, [userId])
+
+    if (userResult.length === 0) {
+      return { success: false, error: "Usuario no encontrado" }
+    }
+
+    const userName = userResult[0].name
+    const userAvatar = userResult[0].image_url
+
+    // Crear nuevo comentario
+    const result = await executeQuery<any[]>(
+      `
+      INSERT INTO comments (media_id, user_id, text) 
+      VALUES ($1, $2, $3) 
+      RETURNING id, media_id as "mediaId", user_id as "userId", text, created_at as "createdAt"
+      `,
+      [mediaId, userId, text.trim()],
+    )
+
+    if (result.length === 0) {
+      return { success: false, error: "Error al crear comentario" }
+    }
+
+    const comment = result[0]
+    comment.userName = userName
+    comment.userAvatar = userAvatar
+
+    return { success: true, comment }
+  } catch (error) {
+    console.error("Error al añadir comentario:", error)
+    return { success: false, error: "Error al añadir comentario" }
+  }
+}
+
+export async function deleteComment(commentId: number, userId: number): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Verificar que el usuario es el autor
+    const comment = await executeQuery<any[]>(`SELECT user_id FROM comments WHERE id = $1`, [commentId])
+
+    if (comment.length === 0) {
+      return { success: false, error: "Comentario no encontrado" }
+    }
+
+    if (comment[0].user_id !== userId) {
+      return { success: false, error: "No tienes permiso para eliminar este comentario" }
+    }
+
+    // Eliminar el comentario
+    await executeQuery(`DELETE FROM comments WHERE id = $1`, [commentId])
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error al eliminar comentario:", error)
+    return { success: false, error: "Error al eliminar comentario" }
   }
 }
