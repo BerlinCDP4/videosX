@@ -9,6 +9,15 @@ export interface MediaItem {
   userId: string // ID del usuario que subió el medio
 }
 
+export interface User {
+  id: string
+  name: string
+  email: string
+  image?: string
+  favorites?: string[] // IDs de medios favoritos
+  history?: string[] // IDs de medios vistos
+}
+
 export interface UserContext {
   userId: string
   setUserId: (id: string) => void
@@ -22,23 +31,13 @@ export interface UserContext {
   updateProfile: (profileData: Partial<UserProfile>) => Promise<{ success: boolean; error?: string }>
 }
 
-export interface UserProfile {
-  id: string
-  name: string
-  email: string
-  username: string
-  profilePicture?: string
-  provider: string
-}
-
 export interface RegisterData {
   email: string
   password: string
   name: string
-  username: string
 }
 
-// Nuevo tipo para comentarios
+// Tipo para comentarios
 export interface Comment {
   id: string
   mediaId: string
@@ -47,4 +46,13 @@ export interface Comment {
   userAvatar?: string
   text: string
   createdAt: string
+}
+
+export interface UserProfile {
+  id: string
+  name: string
+  email: string
+  image?: string
+  favorites?: string[]
+  history?: string[]
 }

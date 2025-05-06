@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { AlertCircle, Upload, LogOut } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { MainNavigation } from "@/components/main-navigation"
+import { userService, blobStorage } from "@/lib/vercel-storage"
 
 export default function ProfilePage() {
   const { user, isAuthenticated, updateProfile, logout } = useAuth()
@@ -23,6 +24,7 @@ export default function ProfilePage() {
   const [success, setSuccess] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [activeSection, setActiveSection] = useState<string>("profile")
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -30,7 +32,20 @@ export default function ProfilePage() {
     if (user) {
       setName(user.name || "")
       setUsername(user.email || "") // Usar email como username por defecto
-      setProfilePicture(user.image || "")
+
+      // Cargar imagen de perfil
+      if (user.image) {
+        if (user.image.startsWith("profile_")) {
+          // Es una imagen almacenada en nuestro sistema
+          const imageData = blobStorage.getImage(user.image)
+          setProfilePicture(imageData || "/default-avatar.png")
+        } else {
+          // Es una URL externa
+          setProfilePicture(user.image)
+        }
+      } else {
+        setProfilePicture("/default-avatar.png")
+      }
     }
   }, [user])
 
@@ -41,13 +56,40 @@ export default function ProfilePage() {
     setIsLoading(true)
 
     try {
-      // Simulamos una actualización exitosa
-      setTimeout(() => {
-        setSuccess("Perfil actualizado correctamente")
-        setIsLoading(false)
-      }, 1000)
+      if (!user) {
+        throw new Error("Usuario no autenticado")
+      }
+
+      // Actualizar perfil
+      const updatedUser = userService.update(user.id, {
+        name,
+        // No actualizamos el email aquí para evitar problemas de autenticación
+      })
+
+      if (!updatedUser) {
+        throw new Error("Error al actualizar perfil")
+      }
+
+      // Actualizar imagen de perfil si ha cambiado
+      if (
+        profilePicture &&
+        profilePicture !== "/default-avatar.png" &&
+        (!user.image || (user.image && profilePicture !== blobStorage.getImage(user.image)))
+      ) {
+        userService.updateProfileImage(user.id, profilePicture)
+      }
+
+      setSuccess("Perfil actualizado correctamente")
+
+      // Actualizar el contexto de autenticación
+      updateProfile({
+        ...user,
+        name,
+      })
     } catch (err) {
+      console.error("Error al actualizar perfil:", err)
       setError("Error al actualizar perfil")
+    } finally {
       setIsLoading(false)
     }
   }
@@ -57,12 +99,10 @@ export default function ProfilePage() {
     router.push("/")
   }
 
-  // Función simulada para cargar imagen
+  // Función para cargar imagen
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      // En una implementación real, aquí se subiría la imagen a un servidor
-      // Para este ejemplo, simulamos una URL local
       const reader = new FileReader()
       reader.onload = (event) => {
         if (event.target?.result) {
@@ -71,6 +111,11 @@ export default function ProfilePage() {
       }
       reader.readAsDataURL(file)
     }
+  }
+
+  // Función para abrir el selector de archivos
+  const handleUploadClick = () => {
+    fileInputRef.current?.click()
   }
 
   // Función simplificada para manejar la navegación
@@ -147,17 +192,7 @@ export default function ProfilePage() {
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
                         className="bg-muted border-muted"
-                        disabled={isLoading}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={user?.email || ""}
-                        readOnly
-                        className="bg-muted border-muted opacity-70"
+                        disabled={true} // Deshabilitado para evitar cambios de email
                       />
                       <p className="text-xs text-muted-foreground">El email no se puede cambiar</p>
                     </div>
@@ -184,11 +219,18 @@ export default function ProfilePage() {
                     Foto de perfil
                   </Label>
                   <div className="flex items-center gap-2">
-                    <Input id="picture" type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                    <Input
+                      id="picture"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                      ref={fileInputRef}
+                    />
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => document.getElementById("picture")?.click()}
+                      onClick={handleUploadClick}
                       className="w-full bg-muted border-muted"
                     >
                       <Upload className="mr-2 h-4 w-4" />

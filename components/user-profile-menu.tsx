@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -24,11 +24,28 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { blobStorage } from "@/lib/vercel-storage"
 
 export function UserProfileMenu() {
   const { user, isAuthenticated, logout, isRemembered } = useAuth()
   const router = useRouter()
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
+  const [avatarSrc, setAvatarSrc] = useState<string>("/default-avatar.png")
+
+  useEffect(() => {
+    if (user?.image) {
+      if (user.image.startsWith("profile_")) {
+        // Es una imagen almacenada en nuestro sistema
+        const imageData = blobStorage.getImage(user.image)
+        setAvatarSrc(imageData || "/default-avatar.png")
+      } else {
+        // Es una URL externa
+        setAvatarSrc(user.image)
+      }
+    } else {
+      setAvatarSrc("/default-avatar.png")
+    }
+  }, [user])
 
   const handleLogout = () => {
     logout()
@@ -50,7 +67,7 @@ export function UserProfileMenu() {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="relative h-8 w-8 rounded-full">
             <Avatar className="h-8 w-8">
-              <AvatarImage src={user?.image || "/default-avatar.png"} alt={user?.name || "Usuario"} />
+              <AvatarImage src={avatarSrc || "/placeholder.svg"} alt={user?.name || "Usuario"} />
               <AvatarFallback>{user?.name?.charAt(0) || "U"}</AvatarFallback>
             </Avatar>
           </Button>

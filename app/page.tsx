@@ -10,65 +10,35 @@ import { useRouter } from "next/navigation"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/contexts/auth-context"
 import MediaViewer from "@/components/media-viewer"
-
-// Versión simplificada de MediaItem
-interface SimpleMediaItem {
-  id: string
-  title: string
-  url: string
-  type: "image" | "video"
-  category: string
-  thumbnail?: string
-  createdAt: string
-  userId: string
-}
+import { mediaService } from "@/lib/db-service"
+import type { MediaItem } from "@/lib/types"
 
 export default function Home() {
   const [activeSection, setActiveSection] = useState<string>("home")
   const [activeTab, setActiveTab] = useState<string>("all")
-  const [mediaItems, setMediaItems] = useState<SimpleMediaItem[]>([])
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [selectedMedia, setSelectedMedia] = useState<SimpleMediaItem | null>(null)
+  const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null)
   const router = useRouter()
   const { user, addToHistory, addToFavorites, removeFromFavorites, getFavorites } = useAuth()
   const favorites = getFavorites()
 
-  // Inicialización segura
+  // Cargar medios al iniciar
   useEffect(() => {
-    try {
-      // Cargar medios
-      const loadMedia = () => {
-        try {
-          const savedMedia = localStorage.getItem("mediaItems")
-          if (savedMedia) {
-            try {
-              const parsedMedia = JSON.parse(savedMedia)
-              if (Array.isArray(parsedMedia)) {
-                setMediaItems(parsedMedia)
-              } else {
-                setMediaItems([])
-              }
-            } catch (e) {
-              console.error("Error al parsear datos:", e)
-              localStorage.removeItem("mediaItems")
-              setMediaItems([])
-            }
-          } else {
-            setMediaItems([])
-          }
-        } catch (e) {
-          console.error("Error al cargar medios:", e)
-          setMediaItems([])
-        } finally {
-          setIsLoading(false)
-        }
+    const loadMedia = () => {
+      try {
+        // Obtener medios de la base de datos
+        const allMedia = mediaService.getAll()
+        setMediaItems(allMedia)
+      } catch (error) {
+        console.error("Error al cargar medios:", error)
+        setMediaItems([])
+      } finally {
+        setIsLoading(false)
       }
-
-      loadMedia()
-    } catch (e) {
-      console.error("Error al inicializar la aplicación:", e)
-      setIsLoading(false)
     }
+
+    loadMedia()
   }, [])
 
   // Función simplificada para manejar la navegación
@@ -100,7 +70,7 @@ export default function Home() {
   })
 
   // Función para abrir un medio
-  const handleMediaClick = (item: SimpleMediaItem) => {
+  const handleMediaClick = (item: MediaItem) => {
     // Añadir al historial
     if (user) {
       addToHistory(item.id)
@@ -121,20 +91,19 @@ export default function Home() {
 
   // Manejar la eliminación de un medio
   const handleDelete = async (id: string) => {
-    // Actualizar la lista local
-    setMediaItems((prev) => prev.filter((item) => item.id !== id))
+    if (!user) return
 
-    // Actualizar localStorage
-    const savedMedia = localStorage.getItem("mediaItems")
-    if (savedMedia) {
-      const parsedMedia = JSON.parse(savedMedia) as SimpleMediaItem[]
-      const updatedMedia = parsedMedia.filter((item) => item.id !== id)
-      localStorage.setItem("mediaItems", JSON.stringify(updatedMedia))
-    }
+    // Eliminar de la base de datos
+    const success = mediaService.delete(id, user.id)
 
-    // Cerrar el visor si el medio eliminado es el que se está viendo
-    if (selectedMedia && selectedMedia.id === id) {
-      setSelectedMedia(null)
+    if (success) {
+      // Actualizar la lista local
+      setMediaItems((prev) => prev.filter((item) => item.id !== id))
+
+      // Cerrar el visor si el medio eliminado es el que se está viendo
+      if (selectedMedia && selectedMedia.id === id) {
+        setSelectedMedia(null)
+      }
     }
   }
 
@@ -248,7 +217,7 @@ export default function Home() {
       {/* Visor de medios */}
       {selectedMedia && (
         <MediaViewer
-          item={selectedMedia as any}
+          item={selectedMedia}
           onClose={() => setSelectedMedia(null)}
           isFavorite={favorites.includes(selectedMedia.id)}
           onToggleFavorite={() => toggleFavorite(selectedMedia.id)}

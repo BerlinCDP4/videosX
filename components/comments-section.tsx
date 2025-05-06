@@ -13,6 +13,7 @@ import { toast } from "@/components/ui/use-toast"
 import type { Comment } from "@/lib/types"
 import { formatDistanceToNow } from "date-fns"
 import { es } from "date-fns/locale"
+import { commentService } from "@/lib/db-service"
 
 interface CommentsProps {
   mediaId: string
@@ -32,16 +33,8 @@ export default function CommentsSection({ mediaId }: CommentsProps) {
   // Función para cargar comentarios
   const loadComments = async () => {
     try {
-      // Intentar cargar desde localStorage
-      const savedComments = localStorage.getItem("comments")
-      if (savedComments) {
-        const allComments = JSON.parse(savedComments) as Comment[]
-        // Filtrar por mediaId
-        const mediaComments = allComments.filter((comment) => comment.mediaId === mediaId)
-        // Ordenar por más reciente primero
-        mediaComments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-        setComments(mediaComments)
-      }
+      const mediaComments = commentService.getByMediaId(mediaId)
+      setComments(mediaComments)
     } catch (error) {
       console.error("Error al cargar comentarios:", error)
       setComments([])
@@ -85,17 +78,11 @@ export default function CommentsSection({ mediaId }: CommentsProps) {
         createdAt: new Date().toISOString(),
       }
 
-      // Actualizar estado local
-      setComments((prev) => [newCommentObj, ...prev])
+      // Guardar en la base de datos
+      const savedComment = commentService.add(newCommentObj)
 
-      // Guardar en localStorage
-      try {
-        const savedComments = localStorage.getItem("comments")
-        const allComments = savedComments ? (JSON.parse(savedComments) as Comment[]) : []
-        localStorage.setItem("comments", JSON.stringify([newCommentObj, ...allComments]))
-      } catch (storageError) {
-        console.error("Error al guardar comentario en localStorage:", storageError)
-      }
+      // Actualizar estado local
+      setComments((prev) => [savedComment, ...prev])
 
       // Limpiar campo de comentario
       setNewComment("")
@@ -131,9 +118,10 @@ export default function CommentsSection({ mediaId }: CommentsProps) {
     if (!user) return
 
     try {
-      // Verificar que el usuario es el autor del comentario
-      const comment = comments.find((c) => c.id === commentId)
-      if (!comment || comment.userId !== user.id) {
+      // Eliminar de la base de datos
+      const success = commentService.delete(commentId, user.id)
+
+      if (!success) {
         toast({
           title: "Error",
           description: "No tienes permiso para eliminar este comentario",
@@ -144,18 +132,6 @@ export default function CommentsSection({ mediaId }: CommentsProps) {
 
       // Actualizar estado local
       setComments((prev) => prev.filter((c) => c.id !== commentId))
-
-      // Actualizar localStorage
-      try {
-        const savedComments = localStorage.getItem("comments")
-        if (savedComments) {
-          const allComments = JSON.parse(savedComments) as Comment[]
-          const updatedComments = allComments.filter((c) => c.id !== commentId)
-          localStorage.setItem("comments", JSON.stringify(updatedComments))
-        }
-      } catch (storageError) {
-        console.error("Error al actualizar localStorage:", storageError)
-      }
 
       toast({
         title: "Comentario eliminado",

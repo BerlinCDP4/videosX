@@ -17,6 +17,7 @@ import { useAuth } from "@/contexts/auth-context"
 import ThumbnailGenerator from "@/components/thumbnail-generator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
+import { mediaService } from "@/lib/db-service"
 
 // Categorías disponibles
 const mediaCategories = ["Amateur", "Famosas", "Monica", "Estudio"]
@@ -162,6 +163,15 @@ export default function UploadPage() {
       return
     }
 
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "Debes iniciar sesión para subir medios",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsLoading(true)
 
     try {
@@ -174,36 +184,11 @@ export default function UploadPage() {
         category: category.toLowerCase(),
         thumbnail: customThumbnail || undefined,
         createdAt: new Date().toISOString(),
-        userId: user?.id || "anonymous",
+        userId: user.id,
       }
 
-      // Guardar en localStorage con manejo de errores
-      try {
-        const savedMedia = localStorage.getItem("mediaItems")
-        let mediaItems = []
-
-        if (savedMedia) {
-          try {
-            mediaItems = JSON.parse(savedMedia)
-            if (!Array.isArray(mediaItems)) {
-              mediaItems = []
-            }
-          } catch (parseError) {
-            console.error("Error al parsear mediaItems:", parseError)
-            mediaItems = []
-          }
-        }
-
-        localStorage.setItem("mediaItems", JSON.stringify([newMedia, ...mediaItems]))
-      } catch (storageError) {
-        console.error("Error al guardar en localStorage:", storageError)
-        // Intentar guardar solo el nuevo elemento
-        try {
-          localStorage.setItem("mediaItems", JSON.stringify([newMedia]))
-        } catch (e) {
-          console.error("Error al guardar el nuevo elemento:", e)
-        }
-      }
+      // Guardar en la base de datos
+      mediaService.add(newMedia)
 
       toast({
         title: "Éxito",
